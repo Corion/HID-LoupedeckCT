@@ -37,27 +37,51 @@ my $ld = HID::LoupedeckCT->new();
 $ld->on('turn' => sub($ld,$info) {
           my $knob = $info->{id};
 	  my $direction = $info->{direction};
-          if   ( $knob == 5 ) { $drawtop += $direction }
-	  elsif( $knob == 4 ) { $drawleft += $direction }
+	  if   ( $knob == 0 ) { $brightness += $direction }
 	  elsif( $knob == 1 ) { $brightness += $direction }
+          elsif( $knob == 5 ) { $drawtop += $direction }
+	  elsif( $knob == 4 ) { $drawleft += $direction }
+	  else {
+	      # unmapped knob
+	  };
 
 	  clamp( \$brightness, 0, 10 );
 
+	  update_screen($ld);
 	  $ld->set_backlight_level($brightness)->retain;
 });
 
+my %toggles;
+
+$ld->on('key' => sub($ld,$info) {
+    say sprintf "Key event: id: %d, released: %d", $info->{id}, $info->{released};
+    my $key = $info->{id};
+    if( $key >= 7 and $key <= 26 and $info->{released}) {
+	my $onoff = $toggles{ $key } ^= 1;
+	$ld->set_button_color($key, 127*$onoff, 127*$onoff, 64*$onoff )->retain;
+    };
+});
+
+$ld->on('wheel' => sub($ld,$info) {
+    say sprintf "Wheel event: id: %d, released: %d", $info->{id}, $info->{released};
+});
+
 $ld->connect()->then(sub {;
-    warn "Connected";
     initialize($ld);
 })->retain;
 
 sub initialize( $self ) {
     $ld->restore_backlight_level->retain;
+
+    # We could be a bit more specific, but why bother ;)
+    for my $id (7..31) {
+	$ld->set_button_color($id,0,0,0)->retain;
+    };
+
+    # set up our neat "UI"
     $ld->get_backlight_level->then(sub($val) {
 	$brightness = $val;
     })->retain;
-        #push @stuff, get_backlight_level($ld);
-        #push @stuff, set_flashdrive($ld,1);
         $ld->get_serial_number->then(sub(%versions) {
             use Data::Dumper; warn Dumper \%versions;
         })->retain;
@@ -131,13 +155,6 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
             . $image;
         $self->send_command( 0xff10, $payload );
         $self->redraw_screen($screen);
-}
-
-    # round buttons: 7 to 14
-    # square buttons: 15 to 26
-sub button_color( $self, $button, $r, $g, $b ) {
-    my $payload = pack "cccc", $button, $r, $g, $b;
-    $self->send_command( 0x0702, $payload );
 }
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
