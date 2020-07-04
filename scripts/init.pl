@@ -4,11 +4,27 @@ use 5.020;
 use experimental 'signatures';
 use Mojo::UserAgent;
 use Mojo::WebSocket qw(WS_PING);
+use Getopt::Long;
+use Pod::Usage;
 
-my $url = 'ws://100.127.11.1/';
+use IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
 
 my $ua = Mojo::UserAgent->new(
 );
+GetOptions(
+    'uri=s' => \my $uri,
+) or pod2usage(2);
+
+if( !$uri ) {
+    for my $i (IO::Interface::Simple->interfaces) {
+        if( $i->address =~ m/^(100\.127\.\d+)\.2$/ ) {
+            $uri = "ws://$1.1/";
+            last;
+        };
+    };
+};
+
+my $ua = Mojo::UserAgent->new();
 
 my %callbacks;
 
