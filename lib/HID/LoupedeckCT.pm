@@ -118,11 +118,16 @@ sub connect( $self, $uri = $self->uri ) {
 
 			my $id = $res{ cbid };
 			my $f = delete $self->callbacks->{ $id };
-			if( $res{ code } == 0x0501 ) {
+			if( $res{ code } == 0x0501 ) { # small encoder turn or wheel turn
 				#$self->hexdump('* ', $res{ data });
 				my ($knob,$direction) = unpack 'Cc', $res{data};
 
 				$self->emit('turn' => { id => $knob, direction => $direction });
+			} elsif( $res{ code } == 0x0500 ) { # key press
+				#$self->hexdump('* ', $res{ data });
+				my ($key,$released) = unpack 'CC', $res{data};
+
+				$self->emit('key' => { id => $key, released => $released });
 			} else {
 				# Call the future
 				if( $f ) {
@@ -255,5 +260,24 @@ sub get_wheel_sensitivity( $self ) {
     });
 }
 
+our %screens = (
+    left   => { id => 0x004c, width =>  60, height => 270, },
+    middle => { id => 0x0041, width => 360, height => 270, },
+    right  => { id => 0x0052, width =>  60, height => 270, },
+    wheel  => { id => 0x0057, width => 240, height => 240, },
+);
+
+sub redraw_screen( $self, $screen ) {
+        #warn "Redrawing '$screen'";
+    #$self->send_command( 0x050f, undef, "\x0b\x03" . pack("n", $screens{$screen}->{id} ));
+    $self->send_command( 0x050f, pack("n", $screens{$screen}->{id} ));
+};
+
+    # round buttons: 7 to 14
+    # square buttons: 15 to 26
+sub set_button_color( $self, $button, $r, $g, $b ) {
+    my $payload = pack "cccc", $button, $r, $g, $b;
+    $self->send_command( 0x0702, $payload );
+}
 
 1;
