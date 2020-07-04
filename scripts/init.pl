@@ -32,6 +32,7 @@ my %callbacks;
 my $cbid = 1;
 
 my $highlight = 7;
+my $brightness;
 
 my @forever;
 
@@ -63,6 +64,14 @@ sub send_command( $tx, $command, $payload ) {
     return $res;
 }
 
+sub clamp($value_ref, $min, $max) {
+    if( $$value_ref < $min ) {
+	$$value_ref = $min
+    } elsif( $$value_ref > $max ) {
+	$$value_ref = $max
+    }
+};
+
 my $w = $ua->websocket($uri => sub {
     my ($ua, $tx) = @_;
     say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
@@ -84,20 +93,20 @@ my $w = $ua->websocket($uri => sub {
       my $f = delete $callbacks{ $id };
       if( $res{ code } == 0x0501 ) {
           #hexdump('* ', $res{ data });
-          my ($status, $payload) = unpack 'CC', $res{data};
-          if( $status eq 1 ) {
-                if( $status == 5 ) { $drawtop++ }
-                elsif( $status == 4 ) { $drawleft++ };
-          } else {
-                if( $status == 5 ) { $drawtop-- }
-                elsif( $status == 4 ) { $drawleft-- };
-          };
-          set_screen_color($tx, 'wheel', 255,255,0, $drawtop, $drawleft, 15, 15);
+          my ($knob,$direction) = unpack 'Cc', $res{data};
+          if   ( $knob == 5 ) { $drawtop += $direction }
+	  elsif( $knob == 4 ) { $drawleft += $direction }
+	  elsif( $knob == 1 ) { $brightness += $direction }
+
+	  clamp( \$brightness, 0, 10 );
+
+	  set_backlight_level($tx, $brightness)->retain;
+          #set_screen_color($tx, 'wheel', 255,255,0, $drawtop, $drawleft, 15, 15)->retain;
       } else {
           # Call the future
           if( $f ) {
               eval {
-                  warn "Dispatching callback $id";
+                  #warn "Dispatching callback $id";
                   $f->done( \%res, $raw );
               };
               warn $@ if $@;
@@ -132,6 +141,9 @@ my $w = $ua->websocket($uri => sub {
 
 sub initialize( $tx ) {
     restore_backlight_level($tx)->retain;
+    get_backlight_level($tx)->then(sub($val) {
+	$brightness = $val;
+    })->retain;
         #push @stuff, get_backlight_level($tx);
         #push @stuff, set_flashdrive($tx,1);
         get_serial_number($tx)->then(sub(%versions) {
@@ -251,7 +263,7 @@ sub set_backlight_level( $tx, $level ) {
             return Future::Mojo->done;
         };
     })->then(sub {
-	send_command($tx,0x0409,$level)
+	send_command($tx,0x0409,chr($level))
     });;
 }
 
@@ -259,22 +271,6 @@ sub restore_backlight_level( $tx ) {
     return get_backlight_level($tx)->then(sub($level) {
 	return set_backlight_level($tx,$level);
     });
-}
-
-sub set_backlight_level( $tx, $level ) {
-    # Store the persistent backlight level
-    return read_register($tx,2)->then(sub(%result) {
-        my $val = ($result{value} & 0x0000ff00) >> 8;
-        warn "Backlight level is $val, setting to $level";
-        if( $val != $level ) {
-            $result{ value } = ($result{value} & 0xffff00ff) | ($level << 8);
-            return set_register($tx, 2, $result{value});
-        } else {
-            return Future::Mojo->done;
-        };
-    })->then(sub {
-	send_command($tx,0x0409,$level)
-    });;
 }
 
 sub vibrate( $tx, $sequence ) {
