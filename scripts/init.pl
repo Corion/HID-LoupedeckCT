@@ -103,19 +103,6 @@ sub initialize( $self ) {
 
 };
 
-our %screens = (
-    left   => { id => 0x004c, width =>  60, height => 270, },
-    middle => { id => 0x0041, width => 360, height => 270, },
-    right  => { id => 0x0052, width =>  60, height => 270, },
-    wheel  => { id => 0x0057, width => 240, height => 240, },
-);
-
-sub redraw_screen( $self, $screen ) {
-        #warn "Redrawing '$screen'";
-    #$self->send_command( 0x050f, undef, "\x0b\x03" . pack("n", $screens{$screen}->{id} ));
-    $self->send_command( 0x050f, pack("n", $screens{$screen}->{id} ));
-};
-
 sub _rgb($r,$g,$b) {
         my $bit =
           ((($r >> 3) & 0x1f) << 3)
@@ -129,14 +116,14 @@ sub _rgbRect($width,$height,$r,$g,$b) {
 }
 
 sub set_screen_color( $self, $screen, $r,$g,$b, $top=0, $left=0, $width=undef,$height=undef ) {
-        $width //= $screens{$screen}->{width};
-        $height //= $screens{$screen}->{height};
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
         #my $screen = 'middle';
         #my $payload = "\x00\x57\x00\x00\x00\x00" . "\x00\x3c\x01\x0e" # . pack('nn', $width,$height)
 
         #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
         my $image = _rgbRect( $width,$height, $r,$g,$b );
-        my $payload = pack("n", $screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
+        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
         $payload .= $image;
         $self->send_command( 0xff10, $payload );
         redraw_screen($ld, $screen);
@@ -151,7 +138,7 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
         #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
         my $image = _rgbRect( $width,$height, 255,0,0 );
         #warn "$screen ($left,$top : ${width}x$height)";
-        my $payload = pack("n", $screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height)
+        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height)
             . $image;
         $self->send_command( 0xff10, $payload );
         $self->redraw_screen($screen);
