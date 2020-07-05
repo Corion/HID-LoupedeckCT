@@ -1,0 +1,36 @@
+HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
+
+
+
+INSTALLATION
+
+This is a Perl module distribution. It should be installed with whichever
+tool you use to manage your installation of Perl, e.g. any of
+
+  cpanm .
+  cpan  .
+  cpanp -i .
+
+Consult https://www.cpan.org/modules/INSTALL.html for further instruction.
+Should you wish to install this module manually, the procedure is
+
+  perl Makefile.PL
+  make
+  make test
+  make install
+
+
+
+
+
+
+
+
+SEE ALSO
+
+L<https://github.com/bitfocus/loupedeck-ct/blob/master/index.js>
+
+L<https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua>
+
+
+

@@ -1,0 +1,32 @@
+
+[![Travis Build Status](https://travis-ci.org/Corion/HID-LoupedeckCT.svg?branch=master)](https://travis-ci.org/Corion/HID-LoupedeckCT)
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/Corion/HID-LoupedeckCT?branch=master&svg=true)](https://ci.appveyor.com/project/Corion/HID-LoupedeckCT)
+
+# NAME
+
+HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
+
+# SYNOPSIS
+
+- Enables or disables the built-in flash drive
+
+    You might need to unplug and replug the device to get the flash drive
+    recognized by your system.
+
+# SEE ALSO
+
+[https://github.com/bitfocus/loupedeck-ct/blob/master/index.js](https://github.com/bitfocus/loupedeck-ct/blob/master/index.js)
+
+[https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua](https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua)
+
+# POD ERRORS
+
+Hey! **The above document had some coding errors, which are explained below:**
+
+- Around line 292:
+
+    '=item' outside of any '=over'
+
+- Around line 371:
+
+    You forgot a '=back' before '=head1'

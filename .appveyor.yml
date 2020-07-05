@@ -1,0 +1,17 @@
+cache:
+  - C:\strawberry
+
+install:
+  - if not exist "C:\strawberry" choco install strawberryperl -y
+  - @REM if not exist "%PROGRAMFILES(x86)%\Google\Chrome\Application\chrome.exe" choco install googlechrome -y
+  - @REM choco upgrade googlechrome -y
+  - set PATH=C:\strawberry\perl\bin;C:\strawberry\perl\site\bin;C:\strawberry\c\bin;%PATH%
+  - cd %APPVEYOR_BUILD_FOLDER%
+  - cpanm --quiet --installdeps --with-develop --notest .
+
+build_script:
+  - perl Makefile.PL
+  - gmake
+
+test_script:
+  - gmake test
