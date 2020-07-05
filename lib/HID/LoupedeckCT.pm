@@ -1,4 +1,4 @@
-package HID::LoupedeckCT;
+package HID::LoupedeckCT 0.01;
 use strict;
 use warnings;
 
