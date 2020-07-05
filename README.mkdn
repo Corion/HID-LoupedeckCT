@@ -42,7 +42,7 @@ The Websocket transaction used for talking.
 This method lists potential candidates for USB connected Loupedeck CT
 devices. It returns them as `ws://` URIs.
 
-## `$ld->send_command $command, $payload`
+## `->send_command $command, $payload`
 
     $ld->send_command( 0x0409, "\03" )->then(sub {
         say "Set backlight level to 3.";
@@ -51,27 +51,27 @@ devices. It returns them as `ws://` URIs.
 Sends a command and returns a [Future](https://metacpan.org/pod/Future) that will be fulfilled with
 the reply from the device.
 
-## `$ld->hexdump $prefix, $string`
+## `->hexdump $prefix, $string`
 
 Helper to dump bytes sent or received to STDOUT.
 
-## `$ld->button_from_xy`
+## `->button_from_xy`
 
 Helper to return a button number from X/Y touch coordinates
 
-## `$ld->button_rect $button`
+## `->button_rect $button`
 
     my( $x1,$y1,$x2,$y2 ) = $ld->button_rect(6);
 
 Helper to return rectangle coordinates from a button number
 
-## `$ld->connect $uri`
+## `->connect $uri`
 
     $ld->connect->then(sub {
         say "Connected to Loupedeck";
     });
 
-## `$ld->read_register $register`
+## `->read_register $register`
 
     $ld->read_register(2)->then(sub {
         my ($info,$data) = @_;
@@ -83,7 +83,7 @@ Reads the value of a persistent register.
 
 These registers are mostly used to store configuration values on the device.
 
-## `$ld->read_register $register`
+## `->read_register $register`
 
     $ld->set_register(2,0x12345678)->retain;
 
@@ -91,7 +91,7 @@ Sets the value of a persistent 32-bit register.
 
 These registers are mostly used to store configuration values on the device.
 
-## `$ld->get_backlight_level`
+## `->get_backlight_level`
 
     $ld->get_backlight_level->then(sub {
         my( $level ) = @_;
@@ -101,7 +101,7 @@ Reads the value of the backlight level stored in the device.
 
 This level can deviate from the actual level.
 
-## `$ld->set_backlight_level`
+## `->set_backlight_level`
 
     $ld->set_backlight_level(9)->retain;
 
@@ -109,7 +109,7 @@ Sets the value of the backlight level and stores in the device.
 
 The level ranges from 0 (off) to 9 (bright).
 
-## `$ld->restore_backlight_level`
+## `->restore_backlight_level`
 
     $ld->restore_backlight_level->retain;
 
@@ -118,14 +118,14 @@ on the device.
 
 Use this method on the startup of your program.
 
-## `$ld->vibrate $pattern`
+## `->vibrate $pattern`
 
     $ld->vibrate()->retain; # default
     $ld->vibrate(10);       # do-de
 
 Vibrates the Loupedeck CT in the given pattern.
 
-## `$ld->set_flashdrive $enable`
+## `->set_flashdrive $enable`
 
     $ld->set_flashdrive(1);
 
@@ -133,6 +133,20 @@ Enables or disables the built-in flash drive
 
 You need to unplug and replug the device to get the flash drive
 recognized by your system.
+
+## `->redraw_screen`
+
+    $ld->redraw_screen->retain;
+
+This updates the screen after paint operations.
+
+## `->set_button_color $button, $r, $g, $b`
+
+    $ld->set_button_color(10, 127,255,127)->retain;
+
+Sets the backlight colour for a physical button. The button
+values are 7 to 14 for the round buttons and 15 to 26 for the square
+buttons.
 
 # SEE ALSO
 
@@ -144,6 +158,6 @@ recognized by your system.
 
 Hey! **The above document had some coding errors, which are explained below:**
 
-- Around line 517:
+- Around line 533:
 
     &#x3d;back without =over

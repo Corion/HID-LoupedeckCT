@@ -114,7 +114,7 @@ sub _build_uri {
     return $uri
 }
 
-=head2 C<< $ld->send_command $command, $payload >>
+=head2 C<< ->send_command $command, $payload >>
 
   $ld->send_command( 0x0409, "\03" )->then(sub {
       say "Set backlight level to 3.";
@@ -137,7 +137,7 @@ sub send_command( $self, $command, $payload ) {
     return $res;
 }
 
-=head2 C<< $ld->hexdump $prefix, $string >>
+=head2 C<< ->hexdump $prefix, $string >>
 
 Helper to dump bytes sent or received to STDOUT.
 
@@ -188,7 +188,7 @@ our @buttons = (
     [ 13, 425,  15, 470, 260 ],
 );
 
-=head2 C<< $ld->button_from_xy >>
+=head2 C<< ->button_from_xy >>
 
 Helper to return a button number from X/Y touch coordinates
 
@@ -209,7 +209,7 @@ sub button_from_xy( $self, $x,$y ) {
     return $button;
 };
 
-=head2 C<< $ld->button_rect $button >>
+=head2 C<< ->button_rect $button >>
 
   my( $x1,$y1,$x2,$y2 ) = $ld->button_rect(6);
 
@@ -230,7 +230,7 @@ sub button_rect( $self, $button ) {
     }
 };
 
-=head2 C<< $ld->connect $uri >>
+=head2 C<< ->connect $uri >>
 
   $ld->connect->then(sub {
       say "Connected to Loupedeck";
@@ -318,7 +318,7 @@ sub connect( $self, $uri = $self->uri ) {
     $res
 };
 
-=head2 C<< $ld->read_register $register >>
+=head2 C<< ->read_register $register >>
 
   $ld->read_register(2)->then(sub {
       my ($info,$data) = @_;
@@ -343,7 +343,7 @@ sub read_register( $self, $register ) {
     });
 }
 
-=head2 C<< $ld->read_register $register >>
+=head2 C<< ->read_register $register >>
 
   $ld->set_register(2,0x12345678)->retain;
 
@@ -358,7 +358,7 @@ sub set_register( $self, $register, $value ) {
     return $self->send_command(0x0819, $update)
 }
 
-=head2 C<< $ld->get_backlight_level >>
+=head2 C<< ->get_backlight_level >>
 
   $ld->get_backlight_level->then(sub {
       my( $level ) = @_;
@@ -377,7 +377,7 @@ sub get_backlight_level( $self ) {
     });
 }
 
-=head2 C<< $ld->set_backlight_level >>
+=head2 C<< ->set_backlight_level >>
 
   $ld->set_backlight_level(9)->retain;
 
@@ -403,7 +403,7 @@ sub set_backlight_level( $self, $level ) {
     });
 }
 
-=head2 C<< $ld->restore_backlight_level >>
+=head2 C<< ->restore_backlight_level >>
 
   $ld->restore_backlight_level->retain;
 
@@ -420,7 +420,7 @@ sub restore_backlight_level( $self ) {
     });
 }
 
-=head2 C<< $ld->vibrate $pattern  >>
+=head2 C<< ->vibrate $pattern  >>
 
   $ld->vibrate()->retain; # default
   $ld->vibrate(10);       # do-de
@@ -433,7 +433,7 @@ sub vibrate( $self, $sequence ) {
     return $self->send_command(0x041B, chr($sequence))
 }
 
-=head2 C<< $ld->set_flashdrive $enable >>
+=head2 C<< ->set_flashdrive $enable >>
 
   $ld->set_flashdrive(1);
 
@@ -499,14 +499,30 @@ sub get_wheel_sensitivity( $self ) {
     });
 }
 
+=head2 C<< ->redraw_screen >>
+
+  $ld->redraw_screen->retain;
+
+This updates the screen after paint operations.
+
+=cut
+
 sub redraw_screen( $self, $screen ) {
         #warn "Redrawing '$screen'";
     #$self->send_command( 0x050f, undef, "\x0b\x03" . pack("n", $screens{$screen}->{id} ));
     $self->send_command( 0x050f, pack("n", $screens{$screen}->{id} ));
 };
 
-    # round buttons: 7 to 14
-    # square buttons: 15 to 26
+=head2 C<< ->set_button_color $button, $r, $g, $b >>
+
+  $ld->set_button_color(10, 127,255,127)->retain;
+
+Sets the backlight colour for a physical button. The button
+values are 7 to 14 for the round buttons and 15 to 26 for the square
+buttons.
+
+=cut
+
 sub set_button_color( $self, $button, $r, $g, $b ) {
     my $payload = pack "cccc", $button, $r, $g, $b;
     $self->send_command( 0x0702, $payload );
