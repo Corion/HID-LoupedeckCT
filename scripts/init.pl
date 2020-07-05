@@ -47,7 +47,7 @@ $ld->on('turn' => sub($ld,$info) {
 
 	  clamp( \$brightness, 0, 10 );
 
-	  update_screen($ld);
+	  #update_screen($ld);
 	  $ld->set_backlight_level($brightness)->retain;
 });
 
@@ -66,13 +66,33 @@ $ld->on('wheel' => sub($ld,$info) {
     say sprintf "Wheel event: id: %d, released: %d", $info->{id}, $info->{released};
 });
 
+$ld->on('touch' => sub($ld,$info) {
+    if( defined $info->{button} ) {
+	my @r = $ld->button_rect( $info->{button});
+	my ($screen,$x,$y,$w,$h) = @r;
+	$w -= $x;
+	$h -= $y;
+	my $rel = !$info->{released};
+	set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h);
+    };
+    say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
+});
+
+$ld->on('wheel_touch' => sub($ld,$info) {
+    #my @r = $ld->button_rect( $info->{button});
+    my ($screen,$x,$y,$w,$h) = ('wheel', 0,0,240,240);
+    my $rel = !$info->{released};
+    set_screen_color($ld,'wheel',0,0,127*$rel,$x,$y,$w,$h);
+    say sprintf "Touch event: released: %d, finger: %d, (%d,%d)", $info->{released}, $info->{finger}, $info->{x}, $info->{y};
+});
+
+
 $ld->connect()->then(sub {;
     initialize($ld);
 })->retain;
 
 sub initialize( $self ) {
     $ld->restore_backlight_level->retain;
-
     # We could be a bit more specific, but why bother ;)
     for my $id (7..31) {
 	$ld->set_button_color($id,0,0,0)->retain;
@@ -96,10 +116,10 @@ sub initialize( $self ) {
         #$ld->set_register(2,0x02000819)->retain;
         #push @stuff, set_register($ld,2, );
         #push @stuff, button_color($ld, 7,127,127,0);
-    #set_screen_color($ld,'left',0,0,0);
-    #set_screen_color($ld,'middle',0,0,0);
-    #set_screen_color($ld,'right',0,0,0);
-    #set_screen_color($ld,'wheel',0,0,0);
+    set_screen_color($ld,'left',0,0,0)->retain;
+    set_screen_color($ld,'middle',0,0,0)->retain;
+    set_screen_color($ld,'right',0,0,0)->retain;
+    set_screen_color($ld,'wheel',0,0,0)->retain;
 
 };
 
@@ -115,18 +135,17 @@ sub _rgbRect($width,$height,$r,$g,$b) {
         _rgb($r,$g,$b) x ($width*$height)
 }
 
-sub set_screen_color( $self, $screen, $r,$g,$b, $top=0, $left=0, $width=undef,$height=undef ) {
+sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
         $width //= $HID::LoupedeckCT::screens{$screen}->{width};
         $height //= $HID::LoupedeckCT::screens{$screen}->{height};
-        #my $screen = 'middle';
-        #my $payload = "\x00\x57\x00\x00\x00\x00" . "\x00\x3c\x01\x0e" # . pack('nn', $width,$height)
-
-        #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
         my $image = _rgbRect( $width,$height, $r,$g,$b );
         my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
+	if( $screen eq 'wheel' ) {
+	    $payload .= "\0";
+	};
         $payload .= $image;
         $self->send_command( 0xff10, $payload );
-        redraw_screen($ld, $screen);
+        $ld->redraw_screen($screen);
 }
 
 sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
