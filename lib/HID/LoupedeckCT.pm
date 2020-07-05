@@ -17,6 +17,14 @@ use Future::Mojo;
 use experimental 'signatures';
 no warnings 'experimental';
 
+=head1 NAME
+
+HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
+
+=head1 SYNOPSIS
+
+=cut
+
 has 'uri' => (
     is => 'lazy',
     default => \&_build_uri,
@@ -46,6 +54,12 @@ has '_cbid' => (
 has '_ping' => (
     is => 'ro',
 );
+
+=head1 METHODS
+
+=over 4
+
+=cut
 
 sub get_cbid( $self ) {
 	my $res = $self->_cbid;
@@ -93,13 +107,71 @@ sub hexdump( $self, $prefix, $str ) {
     };
 }
 
+our %screens = (
+    left   => { id => 0x004c, width =>  60, height => 270, },
+    middle => { id => 0x0041, width => 360, height => 270, },
+    right  => { id => 0x0052, width =>  60, height => 270, },
+    wheel  => { id => 0x0057, width => 240, height => 240, },
+);
+
+# Touch coordinates, not pixel coordinates!
+our @buttons = (
+    # id, xl, yl, xr, yr
+    [  0,  15, 15, 60, 260 ],
+
+    [  1,  80, 15, 145, 90 ],
+    [  2, 165, 15, 235, 90 ],
+    [  3, 250, 15, 320, 90 ],
+    [  4, 335, 15, 410, 90 ],
+
+    [  5,  80, 105, 145, 175 ],
+    [  6, 165, 105, 235, 175 ],
+    [  7, 250, 105, 320, 175 ],
+    [  8, 335, 105, 410, 175 ],
+
+    [  9,  80, 190, 145, 260 ],
+    [ 10, 165, 190, 235, 260 ],
+    [ 11, 250, 190, 320, 260 ],
+    [ 12, 335, 190, 410, 260 ],
+
+    [ 13, 425,  15, 470, 260 ],
+);
+
+# Simple linear search through our list...
+sub button_from_xy( $self, $x,$y ) {
+	my $button = undef;
+
+	for (@buttons) {
+		#warn "($x,$y) | [@$_]";
+		if(     $x >= $_->[1] and $x <= $_->[3]
+		    and $y >= $_->[2] and $y <= $_->[4] ) {
+			return $_->[0];
+		};
+	};
+
+	return $button;
+};
+
+# Simple linear search through our list...
+sub button_rect( $self, $button ) {
+	if( $button == 0 ) {
+		return ('left', 0,0,$screens{left}->{width},$screens{left}->{height});
+	} elsif( $button == 13 ) {
+		return ('right', 0,0,$screens{right}->{width},$screens{right}->{height});
+	} else {
+		my $x = int( ($button-1)%4)*90;
+		my $y = int( ($button-1)/4)*90;
+
+		return ('middle',$x,$y,$x+90,$y+90);
+	}
+};
+
 sub connect( $self, $uri = $self->uri ) {
 	my $res = Future::Mojo->new(
 	    $self->ua->ioloop,
 	);
     my $tx = $self->ua->websocket_p($uri)->then(sub {
         my ($tx) = @_;
-        warn "Web socket there";
         say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
         $self->{tx} = $tx;
         $res->done($self);
@@ -123,11 +195,38 @@ sub connect( $self, $uri = $self->uri ) {
 				my ($knob,$direction) = unpack 'Cc', $res{data};
 
 				$self->emit('turn' => { id => $knob, direction => $direction });
+
 			} elsif( $res{ code } == 0x0500 ) { # key press
 				#$self->hexdump('* ', $res{ data });
 				my ($key,$released) = unpack 'CC', $res{data};
 
 				$self->emit('key' => { id => $key, released => $released });
+
+			} elsif(    $res{ code } == 0x094d
+			         or $res{ code } == 0x096d
+			  ) { # touch press/slide
+				my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+				my $rel = $res{ code } == 0x096d;
+
+				my $button = $self->button_from_xy( $x,$y );
+
+				$self->emit('touch' => {
+					finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+					button => $button,
+				});
+
+			} elsif(    $res{ code } == 0x0952
+			         or $res{ code } == 0x0972
+			  ) { # touch press/slide
+				my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+				my $rel = $res{ code } == 0x0972;
+
+				#my $button = $self->button_from_xy( $x,$y );
+
+				$self->emit('wheel_touch' => {
+					finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+				});
+
 			} else {
 				# Call the future
 				if( $f ) {
@@ -260,13 +359,6 @@ sub get_wheel_sensitivity( $self ) {
     });
 }
 
-our %screens = (
-    left   => { id => 0x004c, width =>  60, height => 270, },
-    middle => { id => 0x0041, width => 360, height => 270, },
-    right  => { id => 0x0052, width =>  60, height => 270, },
-    wheel  => { id => 0x0057, width => 240, height => 240, },
-);
-
 sub redraw_screen( $self, $screen ) {
         #warn "Redrawing '$screen'";
     #$self->send_command( 0x050f, undef, "\x0b\x03" . pack("n", $screens{$screen}->{id} ));
@@ -281,3 +373,13 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 }
 
 1;
+
+=back
+
+=head1 SEE ALSO
+
+L<https://github.com/bitfocus/loupedeck-ct/blob/master/index.js>
+
+L<https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua>
+
+=cut
