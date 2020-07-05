@@ -34,6 +34,7 @@ sub clamp($value_ref, $min, $max) {
 };
 
 my $ld = HID::LoupedeckCT->new();
+say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
           my $knob = $info->{id};
 	  my $direction = $info->{direction};

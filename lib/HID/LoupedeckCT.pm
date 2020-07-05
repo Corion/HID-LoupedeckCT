@@ -23,12 +23,35 @@ HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
 
 =head1 SYNOPSIS
 
+  my $ld = HID::LoupedeckCT->new();
+  say "Connecting to " . $ld->uri;
+  $ld->connect()->get;
+  $ld->on('turn' => sub($ld,$info) {
+      my $knob = $info->{id};
+      my $direction = $info->{direction};
+
+      # ...
+  });
+
+=head1 ACCESSORS
+
+=head2 C<< uri >>
+
+The (websocket) URI where the Loupedeck device can be contacted.
+If not given, this is autodetected.
+
 =cut
 
 has 'uri' => (
     is => 'lazy',
     default => \&_build_uri,
 );
+
+=head2 C<< ua >>
+
+The L<Mojo::UserAgent> used for talking to the Loupedeck CT.
+
+=cut
 
 has 'ua' => (
     is => 'lazy',
@@ -37,11 +60,17 @@ has 'ua' => (
     },
 );
 
+=head2 C<< tx >>
+
+The Websocket transaction used for talking.
+
+=cut
+
 has 'tx' => (
     is => 'ro',
 );
 
-has 'callbacks' => (
+has '_callbacks' => (
     is => 'lazy',
     default => sub { +{} },
 );
@@ -55,22 +84,27 @@ has '_ping' => (
     is => 'ro',
 );
 
+sub _get_cbid( $self ) {
+    my $res = $self->_cbid;
+    $self->_cbid( ($res+1)%256 );
+    $res
+}
+
 =head1 METHODS
 
-=over 4
+=head2 C<< HID::LoupedecCT->list_loupedeck_devices >>
+
+    my @ipv4_addresses = HID::LoupedecCT->list_loupedeck_devices;
+
+This method lists potential candidates for USB connected Loupedeck CT
+devices. It returns them as C<ws://> URIs.
 
 =cut
-
-sub get_cbid( $self ) {
-	my $res = $self->_cbid;
-	$self->_cbid( ($res+1)%256 );
-	$res
-}
 
 sub list_loupedeck_devices {
     return map {
         $_->address =~ m/^(100\.127\.\d+)\.2$/
-        ? "$1.1"
+        ? "ws://$1.1/"
         : ()
     } IO::Interface::Simple->interfaces;
 }
@@ -80,10 +114,21 @@ sub _build_uri {
     return $uri
 }
 
+=head2 C<< $ld->send_command $command, $payload >>
+
+  $ld->send_command( 0x0409, "\03" )->then(sub {
+      say "Set backlight level to 3.";
+  });
+
+Sends a command and returns a L<Future> that will be fulfilled with
+the reply from the device.
+
+=cut
+
 sub send_command( $self, $command, $payload ) {
     my $tx = $self->tx;
-    my $cbid = $self->get_cbid;
-    $self->callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
+    my $cbid = $self->_get_cbid;
+    $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
     #warn "Installed callback $cbid";
     my $p = pack( "nC", $command, $cbid) . $payload;
     $self->hexdump('> ',$p);
@@ -91,6 +136,12 @@ sub send_command( $self, $command, $payload ) {
     $tx->send({ binary => $p });
     return $res;
 }
+
+=head2 C<< $ld->hexdump $prefix, $string >>
+
+Helper to dump bytes sent or received to STDOUT.
+
+=cut
 
 sub hexdump( $self, $prefix, $str ) {
     my @bytes = map { ord($_) } split //, $str;
@@ -137,114 +188,149 @@ our @buttons = (
     [ 13, 425,  15, 470, 260 ],
 );
 
+=head2 C<< $ld->button_from_xy >>
+
+Helper to return a button number from X/Y touch coordinates
+
+=cut
+
 # Simple linear search through our list...
 sub button_from_xy( $self, $x,$y ) {
-	my $button = undef;
+    my $button = undef;
 
-	for (@buttons) {
-		#warn "($x,$y) | [@$_]";
-		if(     $x >= $_->[1] and $x <= $_->[3]
-		    and $y >= $_->[2] and $y <= $_->[4] ) {
-			return $_->[0];
-		};
-	};
+    for (@buttons) {
+        #warn "($x,$y) | [@$_]";
+        if(     $x >= $_->[1] and $x <= $_->[3]
+            and $y >= $_->[2] and $y <= $_->[4] ) {
+            return $_->[0];
+        };
+    };
 
-	return $button;
+    return $button;
 };
 
-# Simple linear search through our list...
+=head2 C<< $ld->button_rect $button >>
+
+  my( $x1,$y1,$x2,$y2 ) = $ld->button_rect(6);
+
+Helper to return rectangle coordinates from a button number
+
+=cut
+
 sub button_rect( $self, $button ) {
-	if( $button == 0 ) {
-		return ('left', 0,0,$screens{left}->{width},$screens{left}->{height});
-	} elsif( $button == 13 ) {
-		return ('right', 0,0,$screens{right}->{width},$screens{right}->{height});
-	} else {
-		my $x = int( ($button-1)%4)*90;
-		my $y = int( ($button-1)/4)*90;
+    if( $button == 0 ) {
+        return ('left', 0,0,$screens{left}->{width},$screens{left}->{height});
+    } elsif( $button == 13 ) {
+        return ('right', 0,0,$screens{right}->{width},$screens{right}->{height});
+    } else {
+        my $x = int( ($button-1)%4)*90;
+        my $y = int( ($button-1)/4)*90;
 
-		return ('middle',$x,$y,$x+90,$y+90);
-	}
+        return ('middle',$x,$y,$x+90,$y+90);
+    }
 };
+
+=head2 C<< $ld->connect $uri >>
+
+  $ld->connect->then(sub {
+      say "Connected to Loupedeck";
+  });
+
+=cut
 
 sub connect( $self, $uri = $self->uri ) {
-	my $res = Future::Mojo->new(
-	    $self->ua->ioloop,
-	);
+    my $res = Future::Mojo->new(
+        $self->ua->ioloop,
+    );
     my $tx = $self->ua->websocket_p($uri)->then(sub {
         my ($tx) = @_;
         say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
         $self->{tx} = $tx;
         $res->done($self);
         $tx->on(binary => sub {
-			my ($tx, $raw) = @_;
+            my ($tx, $raw) = @_;
 
-			$self->hexdump('< ',$raw);
-			# Dispatch it, if we have a receiver for it:
-			my @res = unpack 'nCa*', $raw;
-			my %res = (
-				code     => $res[0],
-				code_vis => sprintf( '%04x', $res[0] ),
-				cbid   => $res[1],
-				data => $res[2],
-			);
+            $self->hexdump('< ',$raw);
+            # Dispatch it, if we have a receiver for it:
+            my @res = unpack 'nCa*', $raw;
+            my %res = (
+                code     => $res[0],
+                code_vis => sprintf( '%04x', $res[0] ),
+                cbid   => $res[1],
+                data => $res[2],
+            );
 
-			my $id = $res{ cbid };
-			my $f = delete $self->callbacks->{ $id };
-			if( $res{ code } == 0x0501 ) { # small encoder turn or wheel turn
-				#$self->hexdump('* ', $res{ data });
-				my ($knob,$direction) = unpack 'Cc', $res{data};
+            my $id = $res{ cbid };
+            my $f = delete $self->_callbacks->{ $id };
+            if( $res{ code } == 0x0501 ) { # small encoder turn or wheel turn
+                #$self->hexdump('* ', $res{ data });
+                my ($knob,$direction) = unpack 'Cc', $res{data};
 
-				$self->emit('turn' => { id => $knob, direction => $direction });
+                $self->emit('turn' => { id => $knob, direction => $direction });
 
-			} elsif( $res{ code } == 0x0500 ) { # key press
-				#$self->hexdump('* ', $res{ data });
-				my ($key,$released) = unpack 'CC', $res{data};
+            } elsif( $res{ code } == 0x0500 ) { # key press
+                #$self->hexdump('* ', $res{ data });
+                my ($key,$released) = unpack 'CC', $res{data};
 
-				$self->emit('key' => { id => $key, released => $released });
+                $self->emit('key' => { id => $key, released => $released });
 
-			} elsif(    $res{ code } == 0x094d
-			         or $res{ code } == 0x096d
-			  ) { # touch press/slide
-				my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
-				my $rel = $res{ code } == 0x096d;
+            } elsif(    $res{ code } == 0x094d
+                     or $res{ code } == 0x096d
+              ) { # touch press/slide
+                my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+                my $rel = $res{ code } == 0x096d;
 
-				my $button = $self->button_from_xy( $x,$y );
+                my $button = $self->button_from_xy( $x,$y );
 
-				$self->emit('touch' => {
-					finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
-					button => $button,
-				});
+                $self->emit('touch' => {
+                    finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+                    button => $button,
+                });
 
-			} elsif(    $res{ code } == 0x0952
-			         or $res{ code } == 0x0972
-			  ) { # touch press/slide
-				my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
-				my $rel = $res{ code } == 0x0972;
+            } elsif(    $res{ code } == 0x0952
+                     or $res{ code } == 0x0972
+              ) { # touch press/slide
+                my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+                my $rel = $res{ code } == 0x0972;
 
-				#my $button = $self->button_from_xy( $x,$y );
+                #my $button = $self->button_from_xy( $x,$y );
 
-				$self->emit('wheel_touch' => {
-					finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
-				});
+                $self->emit('wheel_touch' => {
+                    finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+                });
 
-			} else {
-				# Call the future
-				if( $f ) {
-					eval {
-						#warn "Dispatching callback $id";
-						$f->done( \%res, $raw );
-					};
-					warn $@ if $@;
-				};
-			};
-		});
+            } else {
+                # Call the future
+                if( $f ) {
+                    eval {
+                        #warn "Dispatching callback $id";
+                        $f->done( \%res, $raw );
+                    };
+                    warn $@ if $@;
+                };
+            };
+        });
 
         $self->{_ping} = Mojo::IOLoop->recurring( 10 => sub {
             $tx->send([1, 0, 0, 0, WS_PING, 'ping']);
         });
-	});
-	$res
+    });
+    $res
 };
+
+=head2 C<< $ld->read_register $register >>
+
+  $ld->read_register(2)->then(sub {
+      my ($info,$data) = @_;
+      say $info->{register};
+      say $info->{value};
+  });
+
+Reads the value of a persistent register.
+
+These registers are mostly used to store configuration values on the device.
+
+=cut
 
 sub read_register( $self, $register ) {
     return $self->send_command(0x041A, chr($register))->then(sub($info,$data) {
@@ -257,10 +343,32 @@ sub read_register( $self, $register ) {
     });
 }
 
+=head2 C<< $ld->read_register $register >>
+
+  $ld->set_register(2,0x12345678)->retain;
+
+Sets the value of a persistent 32-bit register.
+
+These registers are mostly used to store configuration values on the device.
+
+=cut
+
 sub set_register( $self, $register, $value ) {
     my $update = pack 'CN', $register, $value;
     return $self->send_command(0x0819, $update)
 }
+
+=head2 C<< $ld->get_backlight_level >>
+
+  $ld->get_backlight_level->then(sub {
+      my( $level ) = @_;
+  });
+
+Reads the value of the backlight level stored in the device.
+
+This level can deviate from the actual level.
+
+=cut
 
 sub get_backlight_level( $self ) {
     return $self->read_register(2)->then(sub(%result) {
@@ -268,6 +376,16 @@ sub get_backlight_level( $self ) {
         return Future::Mojo->done($val);
     });
 }
+
+=head2 C<< $ld->set_backlight_level >>
+
+  $ld->set_backlight_level(9)->retain;
+
+Sets the value of the backlight level and stores in the device.
+
+The level ranges from 0 (off) to 9 (bright).
+
+=cut
 
 sub set_backlight_level( $self, $level ) {
     # Store the persistent backlight level
@@ -281,25 +399,47 @@ sub set_backlight_level( $self, $level ) {
             return Future::Mojo->done;
         };
     })->then(sub {
-		$self->send_command(0x0409,chr($level))
-    });;
+        $self->send_command(0x0409,chr($level))
+    });
 }
+
+=head2 C<< $ld->restore_backlight_level >>
+
+  $ld->restore_backlight_level->retain;
+
+Restores the value of the backlight level to the level stored
+on the device.
+
+Use this method on the startup of your program.
+
+=cut
 
 sub restore_backlight_level( $self ) {
     return get_backlight_level($self)->then(sub($level) {
-		return set_backlight_level($self,$level);
+        return set_backlight_level($self,$level);
     });
 }
+
+=head2 C<< $ld->vibrate $pattern  >>
+
+  $ld->vibrate()->retain; # default
+  $ld->vibrate(10);       # do-de
+
+Vibrates the Loupedeck CT in the given pattern.
+
+=cut
 
 sub vibrate( $self, $sequence ) {
     return $self->send_command(0x041B, chr($sequence))
 }
 
-=item *
+=head2 C<< $ld->set_flashdrive $enable >>
+
+  $ld->set_flashdrive(1);
 
 Enables or disables the built-in flash drive
 
-You might need to unplug and replug the device to get the flash drive
+You need to unplug and replug the device to get the flash drive
 recognized by your system.
 
 =cut
