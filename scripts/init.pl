@@ -32,9 +32,9 @@ my ($drawtop, $drawleft) = (100,100);
 
 sub clamp($value_ref, $min, $max) {
     if( $$value_ref < $min ) {
-	$$value_ref = $min
+        $$value_ref = $min
     } elsif( $$value_ref > $max ) {
-	$$value_ref = $max
+        $$value_ref = $max
     }
 };
 
@@ -273,10 +273,9 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
         #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
         my $image = _rgbRect( $width,$height, 255,0,0 );
         #warn "$screen ($left,$top : ${width}x$height)";
-        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height)
-            . $image;
-        $self->send_command( 0xff10, $payload );
-        $self->redraw_screen($screen);
+        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
+}
+
 sub load_image( $self, %options ) {
     # load the image
     $options{ image } ||= Imager->new( file => $options{ file });
