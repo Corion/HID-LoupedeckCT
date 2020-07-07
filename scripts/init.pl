@@ -5,6 +5,7 @@ use experimental 'signatures';
 
 use Getopt::Long;
 use Pod::Usage;
+use PerlX::Maybe;
 
 use Imager;
 

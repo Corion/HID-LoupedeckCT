@@ -48,6 +48,7 @@ my %module = (
     },
 
     PREREQ_PM => {
+        'PerlX::Maybe'          => 0,
         'Future::Mojo'          => 0,
         'Mojolicious'           => 0,
         'Moo'                   => 2,

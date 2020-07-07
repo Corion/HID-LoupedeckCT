@@ -211,7 +211,7 @@ sub button_from_xy( $self, $x,$y ) {
 
 =head2 C<< ->button_rect $button >>
 
-  my( $screen, $x1,$y1,$x2,$y2 ) = $ld->button_rect(6);
+  my( $screen, $x,$y,$w,$h ) = $ld->button_rect(6);
 
 Helper to return rectangle coordinates from a button number
 
@@ -226,7 +226,7 @@ sub button_rect( $self, $button ) {
         my $x = int( ($button-1)%4)*90;
         my $y = int( ($button-1)/4)*90;
 
-        return ('middle',$x,$y,$x+90,$y+90);
+        return ('middle',$x,$y,90,90);
     }
 };
 
