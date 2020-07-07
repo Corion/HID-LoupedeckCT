@@ -20,6 +20,11 @@ my $cbid = 1;
 
 my $highlight = 7;
 my $brightness;
+my $bit_offset;
+my $white_bits = 1;
+my $r_bits = 1;
+my $g_bits = 1;
+my $b_bits = 1;
 
 my @forever;
 
@@ -40,6 +45,14 @@ sub clamp_v($value, $min, $max) {
 };
 
 #my $bit = unpack 'v', _rgb(255,255,255);
+#warn sprintf "[%d,%d,%d] %d - %016b", 255,255,255, $bit, $bit;
+#my $bit = unpack 'v', _rgb(127,127,127);
+#warn sprintf "[%d,%d,%d] %d - %016b", 127,127,127, $bit, $bit;
+#my $bit = unpack 'v', _rgb(63,63,63);
+#warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
+#die;
+
+
 my $ld = HID::LoupedeckCT->new();
 say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
@@ -47,16 +60,35 @@ $ld->on('turn' => sub($ld,$info) {
 	  my $direction = $info->{direction};
 	  if   ( $knob == 0 ) { $brightness += $direction }
 	  elsif( $knob == 1 ) { $brightness += $direction }
-          elsif( $knob == 5 ) { $drawtop += $direction }
-	  elsif( $knob == 4 ) { $drawleft += $direction }
+	  elsif( $knob == 2 ) { $bit_offset += $direction }
+	  elsif( $knob == 3 ) { $white_bits += $direction }
+	  elsif( $knob == 4 ) { $r_bits += $direction }
+	  elsif( $knob == 5 ) { $g_bits += $direction }
+	  elsif( $knob == 6 ) { $b_bits += $direction }
+          #elsif( $knob == 5 ) { $drawtop += $direction }
+	  #elsif( $knob == 4 ) { $drawleft += $direction }
 	  else {
 	      # unmapped knob
 	  };
 
 	  clamp( \$brightness, 0, 10 );
+	  clamp( \$bit_offset, 0, 15 );
+	  clamp( \$white_bits, 1, 8 );
+	  clamp( \$r_bits, 1, 8 );
+	  clamp( \$g_bits, 1, 8 );
+	  clamp( \$b_bits, 1, 8 );
 
 	  #update_screen($ld);
 	  $ld->set_backlight_level($brightness)->retain;
+	  set_screen_bits($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+	  set_screen_bits($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+	  my $w = (1 << $white_bits) -1;
+	  set_screen_color($ld,'left', $w,$w,$w)->retain;
+
+	  my $r = (1 << $r_bits) -1;
+	  my $g = (1 << $g_bits) -1;
+	  my $b = (1 << $b_bits) -1;
+	  set_screen_color($ld,'right', $r,$g,$b)->retain;
 });
 
 my %toggles;
@@ -82,6 +114,7 @@ $ld->on('touch' => sub($ld,$info) {
 	$h -= $y;
 	my $rel = !$info->{released};
 	set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h);
+	#set_screen_color($ld,$screen,255*$rel,255*$rel,255*$rel,$x,$y,$w,$h);
     };
     say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
@@ -129,18 +162,75 @@ sub initialize( $self ) {
     set_screen_color($ld,'right',0,0,0)->retain;
     set_screen_color($ld,'wheel',0,0,0)->retain;
 
+    #my @bits = map { pack 'n', $_ } (
+    #    #0b0000000000000001, # g
+    #    #0b0000000000000010, # g
+    #    #0b0000000000000100, # g
+    #    #0b0000000000001000, # ?
+    #
+    #    0b0000000000010000, #r ?
+    #    0b0000000000100000, #r
+    #    0b0000000001000000, #r
+    #    0b0000000010000000, #r
+    #
+    #    0b0000000100000000, # b?
+    #    0b0000001000000000, # b
+    #    0b0000010000000000, # b
+    #    0b0000100000000000, # b
+    #
+    #    0b0001000000000000, # b
+    #    0b0010000000000000,
+    #    0b0100000000000000,
+    #    0b1000000000000000,
+    #);
+
+    #for my $row (0,1,2) {
+	#for my $col (0,1,2,3) {
+	#    my $left = $col * 90;
+	#    my $top  = $row * 90;
+	#    #warn "[$r,$g,$b]";
+	#    set_screen_bits($ld,'middle', $bits[$row*4+$col], $left, $top, 90,90)->retain;
+	#};
+    #};
+	    #exit;
+    #set_screen_color($ld,'middle',255,0,0,  0,0, 90,90);
+    #set_screen_color($ld,'middle',0,255,0, 89,89,90,90);
+    #set_screen_color($ld,'middle',0,0,255, 180,180,90,90);
+
 };
 
-sub _rgb($r,$g,$b) {
+sub _rgb($r,$g,$b,$alpha=undef) {
+    # The Loupedeck uses 5-6-5 16-bit color
+    # The bits in the number are matched to
+    # bits  0123456789012345
+    # color bbbbbggggggrrrrr
+    # the memory storage is little-endian
         my $bit =
-          ((($r >> 3) & 0x1f) << 3)
-        + (($g >> 5) & 0x07)
-        + ((($b >> 3) & 0x1f) << 8);
-        return pack 'n', $bit
+	  (((int $r >> 3) & 0x1f) << 11)
+        + (((int $g >> 2) & 0x3f) << 5)
+	+ (((int $b >> 3) & 0x1f))
+	;
+
+	#die sprintf "[%d,%d,%d] %d - %04x", $r,$g,$b, $bit, $bit;
+        return pack 'v', $bit
 };
 
 sub _rgbRect($width,$height,$r,$g,$b) {
         _rgb($r,$g,$b) x ($width*$height)
+}
+
+# Used for determining the bit ordering for the screen
+sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$height=undef ) {
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
+        my $image = $bits x ($width*$height);
+        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
+	if( $screen eq 'wheel' ) {
+	    $payload .= "\0";
+	};
+        $payload .= $image;
+        $self->send_command( 0xff10, $payload );
+        $ld->redraw_screen($screen);
 }
 
 sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
