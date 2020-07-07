@@ -131,7 +131,7 @@ sub send_command( $self, $command, $payload ) {
     $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
     #warn "Installed callback $cbid";
     my $p = pack( "nC", $command, $cbid) . $payload;
-    $self->hexdump('> ',$p);
+    #$self->hexdump('> ',$p);
 
     $tx->send({ binary => $p });
     return $res;
