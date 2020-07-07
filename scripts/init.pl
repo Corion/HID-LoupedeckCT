@@ -277,6 +277,27 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
             . $image;
         $self->send_command( 0xff10, $payload );
         $self->redraw_screen($screen);
+sub load_image( $self, %options ) {
+    # load the image
+    $options{ image } ||= Imager->new( file => $options{ file });
+
+    my $img = delete $options{ image };
+
+    $img = $img->scale(xpixels => 90, ypixels => 90, type => 'min');
+
+    my $image_bits = '';
+
+    # Now, convert the image to 5-6-5 16-bit color
+    # this is highly inefficient here, but later, we'll look at using the
+    # proper Imager->convert() invocation to get the 16-bit 5-6-5 memory layout
+    # Maybe convert to 16-bit "grayscale"
+    my $c = $img->getwidth-1;
+    for my $r (0..$img->getheight-1) {
+        my @colors = $img->getpixel(x => [0..$c], y => [$r]);
+        $image_bits .= join "", map { _rgb($_->rgba) } @colors;
+    }
+
+    set_screen_bits($ld, 'middle', $image_bits, 270, 0, $img->getwidth,$img->getheight);
 }
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
