@@ -125,8 +125,6 @@ $ld->on('touch' => sub($ld,$info) {
     if( defined $info->{button} ) {
         my @r = $ld->button_rect( $info->{button});
         my ($screen,$x,$y,$w,$h) = @r;
-        $w -= $x;
-        $h -= $y;
         my $rel = !$info->{released};
         set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
             $ld->redraw_screen($screen)
