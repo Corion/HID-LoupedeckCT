@@ -52,6 +52,7 @@ sub clamp_v($value, $min, $max) {
 #warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
 #die;
 
+my $image = Imager->new( file => '/home/corion/Bilder/IMG_20190629_110236.jpg');
 
 my $ld = HID::LoupedeckCT->new();
 say "Connecting to " . $ld->uri;
@@ -162,6 +163,8 @@ sub initialize( $self ) {
     set_screen_color($ld,'right',0,0,0)->retain;
     set_screen_color($ld,'wheel',0,0,0)->retain;
 
+    load_image( $ld, image => $image )->retain;
+    $ld->redraw_screen("middle")->retain;
     #my @bits = map { pack 'n', $_ } (
     #    #0b0000000000000001, # g
     #    #0b0000000000000010, # g
