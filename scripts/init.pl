@@ -80,8 +80,8 @@ $ld->on('turn' => sub($ld,$info) {
 
 	  #update_screen($ld);
 	  $ld->set_backlight_level($brightness)->retain;
-	  set_screen_bits($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
-	  set_screen_bits($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+	  #set_screen_bit_sequence($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+	  #set_screen_bit_sequence($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
 	  my $w = (1 << $white_bits) -1;
 	  set_screen_color($ld,'left', $w,$w,$w)->retain;
 
@@ -220,18 +220,23 @@ sub _rgbRect($width,$height,$r,$g,$b) {
 }
 
 # Used for determining the bit ordering for the screen
+sub set_screen_bit_sequence( $self, $screen, $sequence, $left=0, $top=0, $width=undef,$height=undef ) {
+        my $image = $sequence x ($width*$height);
+	set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
+}
+
 sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$height=undef ) {
         $width //= $HID::LoupedeckCT::screens{$screen}->{width};
         $height //= $HID::LoupedeckCT::screens{$screen}->{height};
-        my $image = $bits x ($width*$height);
         my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
 	if( $screen eq 'wheel' ) {
 	    $payload .= "\0";
 	};
-        $payload .= $image;
+        $payload .= $bits;
         $self->send_command( 0xff10, $payload );
         $ld->redraw_screen($screen);
 }
+
 
 sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
         $width //= $HID::LoupedeckCT::screens{$screen}->{width};
