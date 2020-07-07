@@ -139,7 +139,9 @@ $ld->on('wheel_touch' => sub($ld,$info) {
     #my @r = $ld->button_rect( $info->{button});
     my ($screen,$x,$y,$w,$h) = ('wheel', 0,0,240,240);
     my $rel = !$info->{released};
-    set_screen_color($ld,'wheel',0,0,127*$rel,$x,$y,$w,$h);
+    set_screen_color($ld,'wheel',0,0,127*$rel,$x,$y,$w,$h)->then(sub {
+        $ld->redraw_screen('wheel')
+    })->retain;
     say sprintf "Touch event: released: %d, finger: %d, (%d,%d)", $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
 
