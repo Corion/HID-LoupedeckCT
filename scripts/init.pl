@@ -33,6 +33,13 @@ sub clamp($value_ref, $min, $max) {
     }
 };
 
+sub clamp_v($value, $min, $max) {
+    my $res = $value;
+    clamp(\$res, $min, $max);
+    return $res
+};
+
+#my $bit = unpack 'v', _rgb(255,255,255);
 my $ld = HID::LoupedeckCT->new();
 say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
