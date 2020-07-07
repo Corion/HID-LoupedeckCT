@@ -57,39 +57,52 @@ my $image = Imager->new( file => '/home/corion/Bilder/IMG_20190629_110236.jpg');
 my $ld = HID::LoupedeckCT->new();
 say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
+          my %dirty;
+
           my $knob = $info->{id};
-	  my $direction = $info->{direction};
-	  if   ( $knob == 0 ) { $brightness += $direction }
-	  elsif( $knob == 1 ) { $brightness += $direction }
-	  elsif( $knob == 2 ) { $bit_offset += $direction }
-	  elsif( $knob == 3 ) { $white_bits += $direction }
-	  elsif( $knob == 4 ) { $r_bits += $direction }
-	  elsif( $knob == 5 ) { $g_bits += $direction }
-	  elsif( $knob == 6 ) { $b_bits += $direction }
+          my $direction = $info->{direction};
+          if   ( $knob == 0 ) { $brightness += $direction; }
+          elsif( $knob == 1 ) { $brightness += $direction }
+          elsif( $knob == 2 ) { $bit_offset += $direction; $dirty{middle}=1 }
+          elsif( $knob == 3 ) { $white_bits += $direction; $dirty{middle}=1 }
+          elsif( $knob == 4 ) { $r_bits += $direction; $dirty{right}=1 }
+          elsif( $knob == 5 ) { $g_bits += $direction; $dirty{right}=1 }
+          elsif( $knob == 6 ) { $b_bits += $direction; $dirty{right}=1 }
           #elsif( $knob == 5 ) { $drawtop += $direction }
-	  #elsif( $knob == 4 ) { $drawleft += $direction }
-	  else {
-	      # unmapped knob
-	  };
+          #elsif( $knob == 4 ) { $drawleft += $direction }
+          else {
+              # unmapped knob
+          };
 
-	  clamp( \$brightness, 0, 10 );
-	  clamp( \$bit_offset, 0, 15 );
-	  clamp( \$white_bits, 1, 8 );
-	  clamp( \$r_bits, 1, 8 );
-	  clamp( \$g_bits, 1, 8 );
-	  clamp( \$b_bits, 1, 8 );
+          clamp( \$brightness, 0, 10 );
+          clamp( \$bit_offset, 0, 15 );
+          clamp( \$white_bits, 1, 8 );
+          clamp( \$r_bits, 1, 8 );
+          clamp( \$g_bits, 1, 8 );
+          clamp( \$b_bits, 1, 8 );
 
-	  #update_screen($ld);
-	  $ld->set_backlight_level($brightness)->retain;
-	  #set_screen_bit_sequence($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
-	  #set_screen_bit_sequence($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
-	  my $w = (1 << $white_bits) -1;
-	  set_screen_color($ld,'left', $w,$w,$w)->retain;
+          #update_screen($ld);
+          $ld->set_backlight_level($brightness)->retain;
 
-	  my $r = (1 << $r_bits) -1;
-	  my $g = (1 << $g_bits) -1;
-	  my $b = (1 << $b_bits) -1;
-	  set_screen_color($ld,'right', $r,$g,$b)->retain;
+          if( $dirty{ middle }) {
+              set_screen_bit_sequence($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+          };
+          #set_screen_bit_sequence($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+          my $w = (1 << $white_bits) -1;
+          if( $dirty{ left }) {
+              set_screen_color($ld,'left', $w,$w,$w)->retain;
+          };
+
+          my $r = (1 << $r_bits) -1;
+          my $g = (1 << $g_bits) -1;
+          my $b = (1 << $b_bits) -1;
+          if( $dirty{ right }) {
+              set_screen_color($ld,'right', $r,$g,$b)->retain;
+          };
+
+          for (sort keys %dirty) {
+              $ld->redraw_screen($_)->retain;
+          };
 });
 
 my %toggles;
@@ -98,24 +111,25 @@ $ld->on('key' => sub($ld,$info) {
     say sprintf "Key event: id: %d, released: %d", $info->{id}, $info->{released};
     my $key = $info->{id};
     if( $key >= 7 and $key <= 26 and $info->{released}) {
-	my $onoff = $toggles{ $key } ^= 1;
-	$ld->set_button_color($key, 127*$onoff, 127*$onoff, 64*$onoff )->retain;
+        my $onoff = $toggles{ $key } ^= 1;
+        $ld->set_button_color($key, 127*$onoff, 127*$onoff, 64*$onoff )->retain;
     };
 });
 
-$ld->on('wheel' => sub($ld,$info) {
-    say sprintf "Wheel event: id: %d, released: %d", $info->{id}, $info->{released};
-});
+#$ld->on('wheel' => sub($ld,$info) {
+#    say sprintf "Wheel event: id: %d, released: %d", $info->{id}, $info->{released};
+#});
 
 $ld->on('touch' => sub($ld,$info) {
     if( defined $info->{button} ) {
-	my @r = $ld->button_rect( $info->{button});
-	my ($screen,$x,$y,$w,$h) = @r;
-	$w -= $x;
-	$h -= $y;
-	my $rel = !$info->{released};
-	set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h);
-	#set_screen_color($ld,$screen,255*$rel,255*$rel,255*$rel,$x,$y,$w,$h);
+        my @r = $ld->button_rect( $info->{button});
+        my ($screen,$x,$y,$w,$h) = @r;
+        $w -= $x;
+        $h -= $y;
+        my $rel = !$info->{released};
+        set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
+            $ld->redraw_screen($screen)
+        })->retain;
     };
     say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
@@ -137,12 +151,12 @@ sub initialize( $self ) {
     $ld->restore_backlight_level->retain;
     # We could be a bit more specific, but why bother ;)
     for my $id (7..31) {
-	$ld->set_button_color($id,0,0,0)->retain;
+        $ld->set_button_color($id,0,0,0)->retain;
     };
 
     # set up our neat "UI"
     $ld->get_backlight_level->then(sub($val) {
-	$brightness = $val;
+        $brightness = $val;
     })->retain;
         $ld->get_serial_number->then(sub(%versions) {
             use Data::Dumper; warn Dumper \%versions;
@@ -188,14 +202,14 @@ sub initialize( $self ) {
     #);
 
     #for my $row (0,1,2) {
-	#for my $col (0,1,2,3) {
-	#    my $left = $col * 90;
-	#    my $top  = $row * 90;
-	#    #warn "[$r,$g,$b]";
-	#    set_screen_bits($ld,'middle', $bits[$row*4+$col], $left, $top, 90,90)->retain;
-	#};
+        #for my $col (0,1,2,3) {
+        #    my $left = $col * 90;
+        #    my $top  = $row * 90;
+        #    #warn "[$r,$g,$b]";
+        #    set_screen_bits($ld,'middle', $bits[$row*4+$col], $left, $top, 90,90)->retain;
+        #};
     #};
-	    #exit;
+            #exit;
     #set_screen_color($ld,'middle',255,0,0,  0,0, 90,90);
     #set_screen_color($ld,'middle',0,255,0, 89,89,90,90);
     #set_screen_color($ld,'middle',0,0,255, 180,180,90,90);
@@ -209,12 +223,12 @@ sub _rgb($r,$g,$b,$alpha=undef) {
     # color bbbbbggggggrrrrr
     # the memory storage is little-endian
         my $bit =
-	  (((int $r >> 3) & 0x1f) << 11)
+          (((int $r >> 3) & 0x1f) << 11)
         + (((int $g >> 2) & 0x3f) << 5)
-	+ (((int $b >> 3) & 0x1f))
-	;
+        + (((int $b >> 3) & 0x1f))
+        ;
 
-	#die sprintf "[%d,%d,%d] %d - %04x", $r,$g,$b, $bit, $bit;
+        #die sprintf "[%d,%d,%d] %d - %04x", $r,$g,$b, $bit, $bit;
         return pack 'v', $bit
 };
 
@@ -224,20 +238,22 @@ sub _rgbRect($width,$height,$r,$g,$b) {
 
 # Used for determining the bit ordering for the screen
 sub set_screen_bit_sequence( $self, $screen, $sequence, $left=0, $top=0, $width=undef,$height=undef ) {
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
         my $image = $sequence x ($width*$height);
-	set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
+        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
 }
 
 sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$height=undef ) {
         $width //= $HID::LoupedeckCT::screens{$screen}->{width};
         $height //= $HID::LoupedeckCT::screens{$screen}->{height};
         my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
-	if( $screen eq 'wheel' ) {
-	    $payload .= "\0";
-	};
+        if( $screen eq 'wheel' ) {
+            $payload .= "\0";
+        };
         $payload .= $bits;
-        $self->send_command( 0xff10, $payload );
-        $ld->redraw_screen($screen);
+        return $self->send_command( 0xff10, $payload );
+        #$self->redraw_screen($screen);
 }
 
 
@@ -245,13 +261,7 @@ sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$h
         $width //= $HID::LoupedeckCT::screens{$screen}->{width};
         $height //= $HID::LoupedeckCT::screens{$screen}->{height};
         my $image = _rgbRect( $width,$height, $r,$g,$b );
-        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
-	if( $screen eq 'wheel' ) {
-	    $payload .= "\0";
-	};
-        $payload .= $image;
-        $self->send_command( 0xff10, $payload );
-        $ld->redraw_screen($screen);
+        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
 }
 
 sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
