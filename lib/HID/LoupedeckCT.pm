@@ -509,7 +509,6 @@ This updates the screen after paint operations.
 
 sub redraw_screen( $self, $screen ) {
         #warn "Redrawing '$screen'";
-    #$self->send_command( 0x050f, undef, "\x0b\x03" . pack("n", $screens{$screen}->{id} ));
     $self->send_command( 0x050f, pack("n", $screens{$screen}->{id} ));
 };
 
