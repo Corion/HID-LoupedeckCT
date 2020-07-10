@@ -56,7 +56,9 @@ sub clamp_v($value, $min, $max) {
 my $image = Imager->new( file => '/home/corion/Bilder/IMG_20190629_110236.jpg');
 my $image2 = Imager->new( file => '/run/user/1000/gvfs/smb-share:server=aliens,share=media-pub/mp3/Cafe del Mar/Various Artists - Best Of Del Mar, Vol. 9 Beautiful Chill Sounds/1165921.jpg');
 
-my $ld = HID::LoupedeckCT->new();
+my $ld = HID::LoupedeckCT->new(
+    maybe uri => $uri,
+);
 say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
           my %dirty;
