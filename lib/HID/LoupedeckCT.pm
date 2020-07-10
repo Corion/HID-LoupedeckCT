@@ -515,6 +515,37 @@ sub get_serial_number( $self ) {
     });
 }
 
+sub get_mcu_id( $self ) {
+    return $self->send_command(0x030d, '')->then(sub( $info, $data ) {
+        my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        return Future::Mojo->done($id)
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
+sub get_self_test( $self ) {
+    return $self->send_command(0x0304, '')->then(sub( $info, $data ) {
+        #my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        my $result = unpack 'V', $info->{data};
+        return Future::Mojo->done($result)
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
+sub get_loopback( $self, $echo_string ) {
+    return $self->send_command(0x130e, '')->then(sub( $info, $data ) {
+        #my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        return Future::Mojo->done($info->{data})
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
 sub get_wheel_sensitivity( $self ) {
     return $self->send_command(0x041e,"\0")->then(sub($info,$data) {
         my $val = unpack 'C', $data;
