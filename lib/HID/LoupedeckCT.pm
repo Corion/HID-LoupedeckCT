@@ -10,7 +10,13 @@ use Mojo::Base 'Mojo::EventEmitter';
 
 use Moo 2;
 
-use IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
+my $is_windows = ($^O =~ /\bmswin/i);
+if( $is_windows ) {
+    require Win32::IPConfig; # for autodetection of the Loupedeck CT network "card"
+
+} else {
+    require IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
+}
 
 use Future::Mojo;
 
@@ -101,12 +107,29 @@ devices. It returns them as C<ws://> URIs.
 
 =cut
 
-sub list_loupedeck_devices {
+sub list_loupedeck_devices_windows {
+    return map {
+        my $addr = join ",", $_->get_ipaddresses;
+        $addr =~ m/^(100\.127\.\d+)\.2$/
+        ? "ws://$1.1/"
+        : ()
+    } Win32::IPConfig->new->get_adapters;
+}
+
+sub list_loupedeck_devices_other {
     return map {
         $_->address =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
     } IO::Interface::Simple->interfaces;
+}
+
+sub list_loupedeck_devices($class) {
+    if( $is_windows ) {
+        list_loupedeck_devices_windows()
+    } else {
+        list_loupedeck_devices_other()
+    }
 }
 
 sub _build_uri {
