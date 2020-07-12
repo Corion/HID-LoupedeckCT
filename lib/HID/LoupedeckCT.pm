@@ -154,7 +154,11 @@ sub send_command( $self, $command, $payload ) {
     $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
     #warn "Installed callback $cbid";
     my $p = pack( "nC", $command, $cbid) . $payload;
-    #$self->hexdump('> ',$p);
+    my $vis = $p;
+    if( length $vis > 64 ) {
+        $vis = substr( $vis,0, 61). '...';
+    };
+    $self->hexdump('> ',$vis);
 
     $tx->send({ binary => $p });
     return $res;
@@ -174,10 +178,10 @@ sub hexdump( $self, $prefix, $str ) {
         while (@line < 16) {
             push @line, undef
         };
-        my $line = $prefix . join( " ", map { defined($_) ? sprintf '%02x', $_ : '--' } @line)
-                           . "    "
-                           . join( '', map { $_ && $_ >= 32 ? chr($_) : '.' } @line);
-        say $line;
+        my $line =   join( " ", map { defined($_) ? sprintf '%02x', $_ : '--' } @line)
+                   . "    "
+                   . join( '', map { $_ && $_ >= 32 ? chr($_) : '.' } @line);
+        $self->emit('hexdump',$prefix,$line);
     };
 }
 

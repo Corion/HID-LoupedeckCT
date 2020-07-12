@@ -147,6 +147,13 @@ $ld->on('wheel_touch' => sub($ld,$info) {
     say sprintf "Touch event: released: %d, finger: %d, (%d,%d)", $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
 
+$ld->on('hexdump' => sub {
+#use Data::Dumper; warn Dumper \@_;
+eval {
+    my ($ld, $prefix,$line) = @_;
+    say $prefix . $line;
+    }; warn $@ if $@;
+});
 
 $ld->connect()->then(sub {;
     initialize($ld);
