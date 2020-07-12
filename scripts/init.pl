@@ -16,9 +16,6 @@ GetOptions(
 ) or pod2usage(2);
 
 
-my %callbacks;
-my $cbid = 1;
-
 my $highlight = 7;
 my $brightness;
 my $bit_offset = 0;
@@ -26,8 +23,6 @@ my $white_bits = 1;
 my $r_bits = 1;
 my $g_bits = 1;
 my $b_bits = 1;
-
-my @forever;
 
 my ($drawtop, $drawleft) = (100,100);
 
