@@ -418,11 +418,12 @@ sub set_backlight_level( $self, $level ) {
     # Store the persistent backlight level
     return $self->read_register(2)->then(sub(%result) {
         my $val = ($result{value} & 0x0000ff00) >> 8;
-        warn "Backlight level is $val, setting to $level";
         if( $val != $level ) {
+            warn "Backlight level is $val, setting to $level";
             $result{ value } = ($result{value} & 0xffff00ff) | ($level << 8);
             return $self->set_register(2, $result{value});
         } else {
+            warn "Backlight level is $val";
             return Future::Mojo->done;
         };
     })->then(sub {
