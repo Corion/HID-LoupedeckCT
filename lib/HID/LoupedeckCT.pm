@@ -552,7 +552,7 @@ sub get_loopback( $self, $echo_string ) {
 
 sub get_wheel_sensitivity( $self ) {
     return $self->send_command(0x041e,"\0")->then(sub($info,$data) {
-        my $val = unpack 'C', $data;
+        my $val = unpack 'C', $info->{data};
         return Future::Mojo->done($val);
     });
 }

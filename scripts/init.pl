@@ -167,18 +167,23 @@ sub initialize( $self ) {
 
 # No reply for 0x0305, 0x0306, 0x0308
 # unknown request/response 0x131c
+# some checksum?
 #$ld->send_command(0x131c,'\xB2\xC6\xA3\x1D\x3A\xF7\xD9\x85\xE0\x21\x2D\x2D\x87')->then(sub($info,$data) {
 #    say "131c";
 #    use Data::Dumper;
 #    warn Dumper $info->{data};
 #    exit;
 #})->retain;
-    
+
     $ld->restore_backlight_level->retain;
     # We could be a bit more specific, but why bother ;)
     for my $id (7..31) {
         $ld->set_button_color($id,0,0,0)->retain;
     };
+
+    $ld->get_wheel_sensitivity()->then(sub($sensitivity) {
+        say "Wheel sensitivity: $sensitivity";
+    })->retain;
 
     # set up our neat "UI"
     $ld->get_backlight_level->then(sub($val) {
