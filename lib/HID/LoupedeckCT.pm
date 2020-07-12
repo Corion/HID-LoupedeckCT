@@ -557,6 +557,18 @@ sub get_wheel_sensitivity( $self ) {
     });
 }
 
+
+# 1 - very sensitive
+# 4 - default
+# 8 - less sensitive
+# 64 - 0.3 revolutions
+# 100 - 0.5 revolutions
+# 192 - 1 revolution
+# 255 - 1.5 revolutions
+sub set_wheel_sensitivity( $self, $new_sensitivity ) {
+    return $self->send_command(0x041e,chr($new_sensitivity));
+}
+
 =head2 C<< ->redraw_screen >>
 
   $ld->redraw_screen->retain;
