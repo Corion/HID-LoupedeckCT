@@ -48,8 +48,8 @@ sub clamp_v($value, $min, $max) {
 #warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
 #die;
 
-my $image = Imager->new( file => '/home/corion/Bilder/IMG_20190629_110236.jpg');
-my $image2 = Imager->new( file => '/run/user/1000/gvfs/smb-share:server=aliens,share=media-pub/mp3/Cafe del Mar/Various Artists - Best Of Del Mar, Vol. 9 Beautiful Chill Sounds/1165921.jpg');
+my $image = Imager->new( file => './IMG_7410.JPG');
+my $image2 = Imager->new( file => './IMG_7410.JPG');
 
 my $ld = HID::LoupedeckCT->new(
     maybe uri => $uri,
