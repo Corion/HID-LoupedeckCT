@@ -48,10 +48,12 @@ sub clamp_v($value, $min, $max) {
 #warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
 #die;
 
-my $image = Imager->new( file => '/home/corion/Bilder/IMG_20190629_110236.jpg');
-my $image2 = Imager->new( file => '/run/user/1000/gvfs/smb-share:server=aliens,share=media-pub/mp3/Cafe del Mar/Various Artists - Best Of Del Mar, Vol. 9 Beautiful Chill Sounds/1165921.jpg');
+my $image = Imager->new( file => './IMG_7410.JPG');
+my $image2 = Imager->new( file => './IMG_7410.JPG');
 
-my $ld = HID::LoupedeckCT->new();
+my $ld = HID::LoupedeckCT->new(
+    maybe uri => $uri,
+);
 say "Connecting to " . $ld->uri;
 $ld->on('turn' => sub($ld,$info) {
           my %dirty;
@@ -140,17 +142,43 @@ $ld->on('wheel_touch' => sub($ld,$info) {
     say sprintf "Touch event: released: %d, finger: %d, (%d,%d)", $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
 
+$ld->on('hexdump' => sub {
+#use Data::Dumper; warn Dumper \@_;
+eval {
+    my ($ld, $prefix,$line) = @_;
+    say $prefix . $line;
+    }; warn $@ if $@;
+});
 
 $ld->connect()->then(sub {;
     initialize($ld);
 })->retain;
 
 sub initialize( $self ) {
+    $ld->get_self_test->retain;
+    $ld->get_mcu_id->then(sub($id) {
+        say "MCU id: $id";
+    })->retain;
+
+# No reply for 0x0305, 0x0306, 0x0308
+# unknown request/response 0x131c
+# some checksum?
+#$ld->send_command(0x131c,'\xB2\xC6\xA3\x1D\x3A\xF7\xD9\x85\xE0\x21\x2D\x2D\x87')->then(sub($info,$data) {
+#    say "131c";
+#    use Data::Dumper;
+#    warn Dumper $info->{data};
+#    exit;
+#})->retain;
+
     $ld->restore_backlight_level->retain;
     # We could be a bit more specific, but why bother ;)
     for my $id (7..31) {
         $ld->set_button_color($id,0,0,0)->retain;
     };
+
+    $ld->get_wheel_sensitivity()->then(sub($sensitivity) {
+        say "Wheel sensitivity: $sensitivity";
+    })->retain;
 
     # set up our neat "UI"
     $ld->get_backlight_level->then(sub($val) {

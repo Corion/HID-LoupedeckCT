@@ -10,7 +10,13 @@ use Mojo::Base 'Mojo::EventEmitter';
 
 use Moo 2;
 
-use IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
+my $is_windows = ($^O =~ /\bmswin/i);
+if( $is_windows ) {
+    require Win32::IPConfig; # for autodetection of the Loupedeck CT network "card"
+
+} else {
+    require IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
+}
 
 use Future::Mojo;
 
@@ -101,12 +107,29 @@ devices. It returns them as C<ws://> URIs.
 
 =cut
 
-sub list_loupedeck_devices {
+sub list_loupedeck_devices_windows {
+    return map {
+        my $addr = join ",", $_->get_ipaddresses;
+        $addr =~ m/^(100\.127\.\d+)\.2$/
+        ? "ws://$1.1/"
+        : ()
+    } Win32::IPConfig->new->get_adapters;
+}
+
+sub list_loupedeck_devices_other {
     return map {
         $_->address =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
     } IO::Interface::Simple->interfaces;
+}
+
+sub list_loupedeck_devices($class) {
+    if( $is_windows ) {
+        list_loupedeck_devices_windows()
+    } else {
+        list_loupedeck_devices_other()
+    }
 }
 
 sub _build_uri {
@@ -131,7 +154,11 @@ sub send_command( $self, $command, $payload ) {
     $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
     #warn "Installed callback $cbid";
     my $p = pack( "nC", $command, $cbid) . $payload;
-    #$self->hexdump('> ',$p);
+    my $vis = $p;
+    if( length $vis > 64 ) {
+        $vis = substr( $vis,0, 61). '...';
+    };
+    $self->hexdump('> ',$vis);
 
     $tx->send({ binary => $p });
     return $res;
@@ -151,10 +178,10 @@ sub hexdump( $self, $prefix, $str ) {
         while (@line < 16) {
             push @line, undef
         };
-        my $line = $prefix . join( " ", map { defined($_) ? sprintf '%02x', $_ : '--' } @line)
-                           . "    "
-                           . join( '', map { $_ && $_ >= 32 ? chr($_) : '.' } @line);
-        say $line;
+        my $line =   join( " ", map { defined($_) ? sprintf '%02x', $_ : '--' } @line)
+                   . "    "
+                   . join( '', map { $_ && $_ >= 32 ? chr($_) : '.' } @line);
+        $self->emit('hexdump',$prefix,$line);
     };
 }
 
@@ -391,11 +418,12 @@ sub set_backlight_level( $self, $level ) {
     # Store the persistent backlight level
     return $self->read_register(2)->then(sub(%result) {
         my $val = ($result{value} & 0x0000ff00) >> 8;
-        warn "Backlight level is $val, setting to $level";
         if( $val != $level ) {
+            warn "Backlight level is $val, setting to $level";
             $result{ value } = ($result{value} & 0xffff00ff) | ($level << 8);
             return $self->set_register(2, $result{value});
         } else {
+            warn "Backlight level is $val";
             return Future::Mojo->done;
         };
     })->then(sub {
@@ -492,11 +520,54 @@ sub get_serial_number( $self ) {
     });
 }
 
+sub get_mcu_id( $self ) {
+    return $self->send_command(0x030d, '')->then(sub( $info, $data ) {
+        my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        return Future::Mojo->done($id)
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
+sub get_self_test( $self ) {
+    return $self->send_command(0x0304, '')->then(sub( $info, $data ) {
+        #my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        my $result = unpack 'V', $info->{data};
+        return Future::Mojo->done($result)
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
+sub get_loopback( $self, $echo_string ) {
+    return $self->send_command(0x130e, '')->then(sub( $info, $data ) {
+        #my $id = join '', map { sprintf '%02x',$_ } unpack 'CCCCCCCCCCC', $info->{data};
+        return Future::Mojo->done($info->{data})
+    })->catch(sub {
+        warn "Error!";
+        use Data::Dumper; warn Dumper \@_;
+    });
+}
+
 sub get_wheel_sensitivity( $self ) {
     return $self->send_command(0x041e,"\0")->then(sub($info,$data) {
-        my $val = unpack 'C', $data;
+        my $val = unpack 'C', $info->{data};
         return Future::Mojo->done($val);
     });
+}
+
+
+# 1 - very sensitive
+# 4 - default
+# 8 - less sensitive
+# 64 - 0.3 revolutions
+# 100 - 0.5 revolutions
+# 192 - 1 revolution
+# 255 - 1.5 revolutions
+sub set_wheel_sensitivity( $self, $new_sensitivity ) {
+    return $self->send_command(0x041e,chr($new_sensitivity));
 }
 
 =head2 C<< ->redraw_screen >>

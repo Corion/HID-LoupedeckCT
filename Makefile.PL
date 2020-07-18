@@ -17,6 +17,13 @@ my $distlink = $distbase;
 
 my @tests = map { glob $_ } 't/*.t', 't/*/*.t';
 
+my @interface_detect;
+if( $^O =~ /\bmswin/i) {
+    push @interface_detect, 'Win32::IPConfig' => 0;
+} else {
+    push @interface_detect, 'IO::Interface::Simple' => 0;
+};
+
 my %module = (
     NAME                => $module,
     AUTHOR              => q{Max Maischein <corion@cpan.org>},
@@ -33,8 +40,8 @@ my %module = (
             bugtracker => "https://rt.cpan.org/Public/Dist/Display.html?Name=$distbase",
             license    => "https://dev.perl.org/licenses/",
         },
-        dynamic_config   => 0, # we promise to keep META.* up-to-date
-        x_static_install => 1, # we are pure Perl and don't do anything fancy
+        #dynamic_config   => 0, # we promise to keep META.* up-to-date
+        #x_static_install => 1, # we are pure Perl and don't do anything fancy
     },
 
     MIN_PERL_VERSION => '5.020', # This could be lowered if there is demand
@@ -52,7 +59,8 @@ my %module = (
         'Future::Mojo'          => 0,
         'Mojolicious'           => 0,
         'Moo'                   => 2,
-        'IO::Interface::Simple' => 0,
+        
+        @interface_detect,
 
         # for loading images into the screen
         'Imager'                           => 0,
