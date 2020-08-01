@@ -600,8 +600,6 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 
 1;
 
-=back
-
 =head1 SEE ALSO
 
 L<https://github.com/bitfocus/loupedeck-ct/blob/master/index.js>
