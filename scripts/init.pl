@@ -48,8 +48,8 @@ sub clamp_v($value, $min, $max) {
 #warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
 #die;
 
-my $image = Imager->new( file => './IMG_7410.JPG');
-my $image2 = Imager->new( file => './IMG_7410.JPG');
+my $image = Imager->new( file => './IMG_8395.JPG');
+my $image2 = Imager->new( file => './IMG_8395.JPG');
 
 my $ld = HID::LoupedeckCT->new(
     maybe uri => $uri,
@@ -124,7 +124,7 @@ $ld->on('touch' => sub($ld,$info) {
         my @r = $ld->button_rect( $info->{button});
         my ($screen,$x,$y,$w,$h) = @r;
         my $rel = !$info->{released};
-	load_image_button($ld,image => $image2, button => $info->{button}, center => 1,update => 1)->retain;
+	$ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)->retain;
         #set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
         #    $ld->redraw_screen($screen)
         #})->retain;
@@ -202,8 +202,8 @@ sub initialize( $self ) {
     set_screen_color($ld,'middle',0,0,0)->retain;
     set_screen_color($ld,'right',0,0,0)->retain;
     set_screen_color($ld,'wheel',0,0,0)->retain;
-    load_image_button( $ld, image => $image, button => 3, center => 1, update => 1, )->retain;
-    load_image( $ld, screen => 'wheel', center => 1, image => $image, update => 1, )->retain;
+    $ld->load_image_button( image => $image, button => 3, center => 1, update => 1, )->retain;
+    $ld->load_image( screen => 'wheel', center => 1, image => $image, update => 1, )->retain;
     #my @bits = map { pack 'n', $_ } (
     #    #0b0000000000000001, # g
     #    #0b0000000000000010, # g
@@ -240,124 +240,5 @@ sub initialize( $self ) {
     #set_screen_color($ld,'middle',0,0,255, 180,180,90,90);
 
 };
-
-sub _rgb($r,$g,$b,$alpha=undef) {
-    # The Loupedeck uses 5-6-5 16-bit color
-    # The bits in the number are matched to
-    # bits  0123456789012345
-    # color bbbbbggggggrrrrr
-    # the memory storage is little-endian
-        my $bit =
-          (((int $r >> 3) & 0x1f) << 11)
-        + (((int $g >> 2) & 0x3f) << 5)
-        + (((int $b >> 3) & 0x1f))
-        ;
-
-        #die sprintf "[%d,%d,%d] %d - %04x", $r,$g,$b, $bit, $bit;
-        return pack 'v', $bit
-};
-
-sub _rgbRect($width,$height,$r,$g,$b) {
-        _rgb($r,$g,$b) x ($width*$height)
-}
-
-# Used for determining the bit ordering for the screen
-sub set_screen_bit_sequence( $self, $screen, $sequence, $left=0, $top=0, $width=undef,$height=undef ) {
-        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
-        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
-        my $image = $sequence x ($width*$height);
-        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
-}
-
-sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$height=undef ) {
-        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
-        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
-        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
-        if( $screen eq 'wheel' ) {
-            $payload .= "\0";
-        };
-        $payload .= $bits;
-        return $self->send_command( 0xff10, $payload );
-        #$self->redraw_screen($screen);
-}
-
-sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
-        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
-        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
-        my $image = _rgbRect( $width,$height, $r,$g,$b );
-        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
-}
-
-sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
-        $width //= 15;
-        $height //= 15;
-        my $screen = 'middle';
-        #my $payload = "\x00\x57\x00\x00\x00\x00" . "\x00\x3c\x01\x0e" # . pack('nn', $width,$height)
-
-        #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
-        my $image = _rgbRect( $width,$height, 255,0,0 );
-        #warn "$screen ($left,$top : ${width}x$height)";
-        return set_screen_bits( $self, $screen, $image, $left, $top, $width, $height );
-}
-
-sub load_image_button( $self, %options ) {
-    my $button = delete $options{ button };
-
-    my @r = $ld->button_rect( $button);
-    my ($screen,$x,$y,$w,$h) = @r;
-
-    return load_image(
-        $ld,
-	      screen => $screen,
-	      left   => $x,
-	      top    => $y,
-	      width  => $w,
-	      height => $h,
-	maybe image  => $options{ image },
-	maybe file   => $options{ file },
-        maybe center => $options{ center },
-        maybe update => $options{ update },
-    );
-}
-
-sub load_image( $self, %options ) {
-    # load the image
-    $options{ image } //= Imager->new( file => delete $options{ file });
-    my $screen = delete $options{ screen } // 'middle';
-
-    my $x = delete $options{ left };
-    my $y = delete $options{ top };
-    my $w = delete $options{ width } // $HID::LoupedeckCT::screens{$screen}->{width};
-    my $h = delete $options{ height } // $HID::LoupedeckCT::screens{$screen}->{height};
-
-    my $img = delete $options{ image };
-
-    $img = $img->scale(xpixels => $w, ypixels => $h, type => 'min');
-
-    if( delete $options{ center }) {
-	$x += int(($w-$img->getwidth)/2);
-	$y += int(($h-$img->getheight)/2);
-    };
-
-    my $image_bits = '';
-
-    # Now, convert the image to 5-6-5 16-bit color
-    # this is somewhat inefficient here, but later, we'll look at using the
-    # proper Imager->convert() invocation to get the 16-bit 5-6-5 memory layout
-    # Maybe convert to 16-bit "grayscale"
-    my $c = $img->getwidth-1;
-    for my $r (0..$img->getheight-1) {
-        my @colors = $img->getpixel(x => [0..$c], y => [$r]);
-        $image_bits .= join "", map { _rgb($_->rgba) } @colors;
-    }
-
-    my $res = set_screen_bits($ld, $screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
-    if( $options{ update }) {
-	$res = $res->then(sub {
-	    $self->redraw_screen( $screen );
-	});
-    };
-    return $res
-}
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;

@@ -9,6 +9,8 @@ use Mojo::WebSocket qw(WS_PING);
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Moo 2;
+use PerlX::Maybe;
+use Imager;
 
 my $is_windows = ($^O =~ /\bmswin/i);
 if( $is_windows ) {
@@ -595,6 +597,132 @@ buttons.
 sub set_button_color( $self, $button, $r, $g, $b ) {
     my $payload = pack "cccc", $button, $r, $g, $b;
     $self->send_command( 0x0702, $payload );
+}
+
+=head2 C<< ->load_image >>
+
+=cut
+
+sub load_image( $self, %options ) {
+    # load the image
+    $options{ image } //= Imager->new( file => delete $options{ file });
+    my $screen = delete $options{ screen } // 'middle';
+
+    my $x = delete $options{ left };
+    my $y = delete $options{ top };
+    my $w = delete $options{ width } // $HID::LoupedeckCT::screens{$screen}->{width};
+    my $h = delete $options{ height } // $HID::LoupedeckCT::screens{$screen}->{height};
+
+    my $img = delete $options{ image };
+
+    $img = $img->scale(xpixels => $w, ypixels => $h, type => 'min');
+
+    if( delete $options{ center }) {
+	$x += int(($w-$img->getwidth)/2);
+	$y += int(($h-$img->getheight)/2);
+    };
+
+    my $image_bits = '';
+
+    # Now, convert the image to 5-6-5 16-bit color
+    # this is somewhat inefficient here, but later, we'll look at using the
+    # proper Imager->convert() invocation to get the 16-bit 5-6-5 memory layout
+    # Maybe convert to 16-bit "grayscale"
+    my $c = $img->getwidth-1;
+    for my $r (0..$img->getheight-1) {
+        my @colors = $img->getpixel(x => [0..$c], y => [$r]);
+        $image_bits .= join "", map { _rgb($_->rgba) } @colors;
+    }
+
+    my $res = $self->set_screen_bits($screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
+    if( $options{ update }) {
+	$res = $res->then(sub {
+	    $self->redraw_screen( $screen );
+	});
+    };
+    return $res
+}
+
+=head2 C<< ->load_image_button >>
+
+=cut
+
+sub load_image_button( $self, %options ) {
+    my $button = delete $options{ button };
+
+    my @r = $self->button_rect( $button);
+    my ($screen,$x,$y,$w,$h) = @r;
+
+    return $self->load_image(
+	      screen => $screen,
+	      left   => $x,
+	      top    => $y,
+	      width  => $w,
+	      height => $h,
+	maybe image  => $options{ image },
+	maybe file   => $options{ file },
+    maybe center => $options{ center },
+    maybe update => $options{ update },
+    );
+}
+
+sub _rgb($r,$g,$b,$alpha=undef) {
+    # The Loupedeck uses 5-6-5 16-bit color
+    # The bits in the number are matched to
+    # bits  0123456789012345
+    # color bbbbbggggggrrrrr
+    # the memory storage is little-endian
+        my $bit =
+          (((int $r >> 3) & 0x1f) << 11)
+        + (((int $g >> 2) & 0x3f) << 5)
+        + (((int $b >> 3) & 0x1f))
+        ;
+
+        #die sprintf "[%d,%d,%d] %d - %04x", $r,$g,$b, $bit, $bit;
+        return pack 'v', $bit
+};
+
+sub _rgbRect($width,$height,$r,$g,$b) {
+        _rgb($r,$g,$b) x ($width*$height)
+}
+
+# Used for determining the bit ordering for the screen
+sub set_screen_bit_sequence( $self, $screen, $sequence, $left=0, $top=0, $width=undef,$height=undef ) {
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
+        my $image = $sequence x ($width*$height);
+        return $self->set_screen_bits( $screen, $image, $left, $top, $width, $height );
+}
+
+sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$height=undef ) {
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
+        my $payload = pack("n", $HID::LoupedeckCT::screens{$screen}->{id} ) . pack('nnnn', $left, $top, $width,$height);
+        if( $screen eq 'wheel' ) {
+            $payload .= "\0";
+        };
+        $payload .= $bits;
+        return $self->send_command( 0xff10, $payload );
+        #$self->redraw_screen($screen);
+}
+
+sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
+        $width //= $HID::LoupedeckCT::screens{$screen}->{width};
+        $height //= $HID::LoupedeckCT::screens{$screen}->{height};
+        my $image = _rgbRect( $width,$height, $r,$g,$b );
+        return $self->set_screen_bits( $screen, $image, $left, $top, $width, $height );
+}
+
+sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
+        $width //= 15;
+        $height //= 15;
+        my $screen = 'middle';
+        #my $payload = "\x00\x57\x00\x00\x00\x00" . "\x00\x3c\x01\x0e" # . pack('nn', $width,$height)
+
+        #my $image = join "", map { _rgb(255,0,0) } 1..($width*$height);
+        my $image = _rgbRect( $width,$height, 255,0,0 );
+        #warn "$screen ($left,$top : ${width}x$height)";
+        return $self->set_screen_bits( $screen, $image, $left, $top, $width, $height );
 }
 
 1;
