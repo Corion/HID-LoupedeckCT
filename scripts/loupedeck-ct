@@ -1,0 +1,36 @@
+#!perl
+use strict;
+use 5.020;
+use experimental 'signatures';
+
+use Getopt::Long;
+use Pod::Usage;
+use PerlX::Maybe;
+
+use Imager;
+
+use HID::LoupedeckCT;
+
+GetOptions(
+    'uri=s' => \my $uri,
+    'brightness=i' => \my $brightness,
+    'persist-brightness' => \my $persist_brightness,
+) or pod2usage(2);
+
+my $ld = HID::LoupedeckCT->new(
+    maybe uri => $uri,
+);
+
+my $command = $ld->connect->then(sub {
+    if( defined $brightness ) {
+        return $ld->set_backlight_level($brightness, persist => $persist_brightness);
+    } else {
+        return Future->done;
+    };
+
+})->then(sub {
+    Mojo::IOLoop->stop;
+    Future->done;
+});
+
+Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
