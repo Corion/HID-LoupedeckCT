@@ -628,8 +628,8 @@ sub load_image( $self, %options ) {
     $img = $img->scale(xpixels => $w, ypixels => $h, type => 'min');
 
     if( delete $options{ center }) {
-	$x += int(($w-$img->getwidth)/2);
-	$y += int(($h-$img->getheight)/2);
+        $x += int(($w-$img->getwidth)/2);
+        $y += int(($h-$img->getheight)/2);
     };
 
     my $image_bits = '';
@@ -646,9 +646,9 @@ sub load_image( $self, %options ) {
 
     my $res = $self->set_screen_bits($screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
     if( $options{ update }) {
-	$res = $res->then(sub {
-	    $self->redraw_screen( $screen );
-	});
+        $res = $res->then(sub {
+            $self->redraw_screen( $screen );
+        });
     };
     return $res
 }
@@ -664,15 +664,15 @@ sub load_image_button( $self, %options ) {
     my ($screen,$x,$y,$w,$h) = @r;
 
     return $self->load_image(
-	      screen => $screen,
-	      left   => $x,
-	      top    => $y,
-	      width  => $w,
-	      height => $h,
-	maybe image  => $options{ image },
-	maybe file   => $options{ file },
-    maybe center => $options{ center },
-    maybe update => $options{ update },
+              screen => $screen,
+              left   => $x,
+              top    => $y,
+              width  => $w,
+              height => $h,
+        maybe image  => $options{ image },
+        maybe file   => $options{ file },
+        maybe center => $options{ center },
+        maybe update => $options{ update },
     );
 }
 
