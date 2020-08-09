@@ -406,28 +406,38 @@ sub get_backlight_level( $self ) {
     });
 }
 
-=head2 C<< ->set_backlight_level >>
+=head2 C<< ->set_backlight_level $level, %options >>
 
   $ld->set_backlight_level(9)->retain;
 
-Sets the value of the backlight level and stores in the device.
+Sets the value of the backlight level and optionally stores in the device
+for persistence across machines/power loss.
 
 The level ranges from 0 (off) to 9 (bright).
 
+If you pass in the C<persist> option, the backlight level stored in the
+permanent register 2 will be updated.
+
+  $ld->set_backlight_level(9, persist => 1)->retain;
+
 =cut
 
-sub set_backlight_level( $self, $level ) {
+sub set_backlight_level( $self, $level, %options ) {
     # Store the persistent backlight level
-    return $self->read_register(2)->then(sub(%result) {
-        my $val = ($result{value} & 0x0000ff00) >> 8;
-        if( $val != $level ) {
-            #warn "Backlight level is $val, setting to $level";
-            $result{ value } = ($result{value} & 0xffff00ff) | ($level << 8);
-            return $self->set_register(2, $result{value});
-        } else {
-            return Future::Mojo->done;
-        };
-    })->then(sub {
+    my $do_update = $options{ persist }
+                    ? $self->read_register(2)->then(sub(%result) {
+                        my $val = ($result{value} & 0x0000ff00) >> 8;
+                        if( $val != $level ) {
+                            #warn "Backlight level is $val, setting to $level";
+                            $result{ value } = ($result{value} & 0xffff00ff) | ($level << 8);
+                            return $self->set_register(2, $result{value});
+                        } else {
+                            return Future::Mojo->done;
+                        };
+                      })
+                    : Future->done();
+
+    $do_update->then(sub {
         $self->send_command(0x0409,chr($level))
     });
 }
@@ -439,7 +449,7 @@ sub set_backlight_level( $self, $level ) {
 Restores the value of the backlight level to the level stored
 on the device.
 
-Use this method on the startup of your program.
+Use this method at the startup of your program.
 
 =cut
 
