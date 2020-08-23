@@ -45,7 +45,7 @@ sub check {
       # what my version numbers look like
       my $version = qr/\d+\.\d+/;
       my @version_lines = grep { defined }
-                          $content =~ m/ [^\n]* \$VERSION \s* = ["']($version)['"] | package \s+ \S+ \s+ ($version) \s* ; /gxms;
+                          $content =~ m/ [^\n]* \$VERSION \s* = \s* ["']($version)['"] | package \s+ \S+ \s+ ($version) \s* ; /gxms;
       if (@version_lines == 0) {
             fail($_);
       }
