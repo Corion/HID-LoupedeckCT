@@ -747,6 +747,6 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
 
 L<https://github.com/bitfocus/loupedeck-ct/blob/master/index.js>
 
-L<https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua>
+L<https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeck/init.lua>
 
 =cut
