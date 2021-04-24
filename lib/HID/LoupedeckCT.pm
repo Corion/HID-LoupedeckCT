@@ -340,9 +340,9 @@ sub connect( $self, $uri = $self->uri ) {
             };
         });
 
-        $self->{_ping} = Mojo::IOLoop->recurring( 10 => sub {
-            $tx->send([1, 0, 0, 0, WS_PING, 'ping']);
-        });
+        #$self->{_ping} = Mojo::IOLoop->recurring( 10 => sub {
+        #    $tx->send([1, 0, 0, 0, WS_PING, 'ping']);
+        #});
     });
     $res
 };
