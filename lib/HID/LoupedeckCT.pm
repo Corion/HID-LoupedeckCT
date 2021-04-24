@@ -518,12 +518,6 @@ sub get_firmware_version( $self ) {
 
 sub get_serial_number( $self ) {
     return $self->send_command(0x0303, '')->then(sub( $info, $data ) {
-        #my @versions = unpack 'a3a3a3', $info->{ data };
-        #my %result;
-        #$result{b} = sprintf '%d.%d.%d', map { ord($_)} split //, shift @versions;
-        #$result{c} = sprintf '%d.%d.%d', map { ord($_)} split //, shift @versions;
-        #$result{i} = sprintf '%d.%d.%d', map { ord($_)} split //, shift @versions;
-        #use Data::Dumper; warn Dumper \%result;
         return Future::Mojo->done($info->{data})
     })->catch(sub {
         warn "Error!";
