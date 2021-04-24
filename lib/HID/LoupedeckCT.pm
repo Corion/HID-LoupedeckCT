@@ -575,6 +575,18 @@ sub set_wheel_sensitivity( $self, $new_sensitivity ) {
     return $self->send_command(0x041e,chr($new_sensitivity));
 }
 
+=head2 C<< ->reset >>
+
+  $ld->reset
+
+Resets/restarts the Loupedeck device
+
+=cut
+
+sub reset( $self ) {
+    return $self->send_command(0x0406,"\x00");
+}
+
 =head2 C<< ->redraw_screen >>
 
   $ld->redraw_screen->retain;
