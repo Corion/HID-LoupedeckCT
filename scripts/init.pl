@@ -82,28 +82,36 @@ $ld->on('turn' => sub($ld,$info) {
           clamp( \$g_bits, 1, 8 );
           clamp( \$b_bits, 1, 8 );
 
-          #update_screen($ld);
-          $ld->set_backlight_level($brightness)->retain;
+          $ld->set_backlight_level($brightness)
+          #->then(sub {
+          #    return $ld->send_command( 0x0410, "\x01" );
+          #})
+          ->catch(sub {
+                say "Backlight error";
+                say "$_" for @_;
+                # On the new firmware, backlight doesn't update automatically any more?!
+            })->retain;
 
           if( $dirty{ middle }) {
-              set_screen_bit_sequence($ld,'middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
+              $ld->set_screen_bit_sequence('middle', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
           };
           #set_screen_bit_sequence($ld,'wheel', pack( 'v', 1 << $bit_offset), 0,0,180,180)->retain;
           my $w = (1 << $white_bits) -1;
           if( $dirty{ left }) {
-              set_screen_color($ld,'left', $w,$w,$w)->retain;
+              $ld->set_screen_color('left', $w,$w,$w)->retain;
           };
 
           my $r = (1 << $r_bits) -1;
           my $g = (1 << $g_bits) -1;
           my $b = (1 << $b_bits) -1;
           if( $dirty{ right }) {
-              set_screen_color($ld,'right', $r,$g,$b)->retain;
+              $ld->set_screen_color('right', $r,$g,$b)->retain;
           };
 
           for (sort keys %dirty) {
               $ld->redraw_screen($_)->retain;
           };
+          $ld->redraw_screen('wheel')->retain;
 });
 
 my %toggles;
@@ -126,7 +134,11 @@ $ld->on('touch' => sub($ld,$info) {
         my @r = $ld->button_rect( $info->{button});
         my ($screen,$x,$y,$w,$h) = @r;
         my $rel = !$info->{released};
-	$ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)->retain;
+	$ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)
+    ->catch(sub {
+        say "Image load error (image2)";
+        say "$_" for @_;
+    })->retain;
         #set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
         #    $ld->redraw_screen($screen)
         #})->retain;
@@ -138,7 +150,7 @@ $ld->on('wheel_touch' => sub($ld,$info) {
     #my @r = $ld->button_rect( $info->{button});
     my ($screen,$x,$y,$w,$h) = ('wheel', 0,0,240,240);
     my $rel = !$info->{released};
-    set_screen_color($ld,'wheel',0,0,127*$rel,$x,$y,$w,$h)->then(sub {
+    $ld->set_screen_color('wheel',0,0,127*$rel,$x,$y,$w,$h)->then(sub {
         $ld->redraw_screen('wheel')
     })->retain;
     say sprintf "Touch event: released: %d, finger: %d, (%d,%d)", $info->{released}, $info->{finger}, $info->{x}, $info->{y};
@@ -157,10 +169,19 @@ $ld->connect()->then(sub {;
 })->retain;
 
 sub initialize( $self ) {
-    $ld->get_self_test->retain;
-    $ld->get_mcu_id->then(sub($id) {
+
+    #$ld->get_self_test
+    my $res = Future->done
+    ->then(sub{
+    #$ld->send_command(0x131c,"\xB2\xC6\xA3\x1D\x3A\xF7\xD9\x85\xE0\x21\x2D\x2D\x87")->retain;
+    #    $ld->send_command(0x131c,"\x61f1392a8e936ba66e992daedb40f65f")
+        Future->done
+    })
+    ->then(sub {
+        $ld->get_mcu_id
+    })->then(sub($id) {
         say "MCU id: $id";
-    })->retain;
+    });
 
 # No reply for 0x0305, 0x0306, 0x0308
 # unknown request/response 0x131c
@@ -172,26 +193,39 @@ sub initialize( $self ) {
 #    exit;
 #})->retain;
 
-    $ld->restore_backlight_level->retain;
+    #my $init = $ld->restore_backlight_level;
     # We could be a bit more specific, but why bother ;)
     for my $id (7..31) {
-        $ld->set_button_color($id,0,0,0)->retain;
+        my $btn = $id;
+        $res = $res->then(sub {
+            say "Button $btn";
+            return $ld->set_button_color($btn,0,0,0)
+        });
     };
 
-    $ld->get_wheel_sensitivity()->then(sub($sensitivity) {
+    $res = $res->then(sub {
+
+        $ld->get_wheel_sensitivity()
+    })->then(sub($sensitivity) {
         say "Wheel sensitivity: $sensitivity";
-    })->retain;
+    });
 
     # set up our neat "UI"
-    $ld->get_backlight_level->then(sub($val) {
+    $res = $res->then(sub {
+        $ld->get_backlight_level
+    })->then(sub($val) {
         $brightness = $val;
-    })->retain;
-        $ld->get_serial_number->then(sub(%versions) {
-            use Data::Dumper; warn Dumper \%versions;
-        })->retain;
-        $ld->get_firmware_version->then(sub(%versions) {
-            use Data::Dumper; warn Dumper \%versions;
-        })->retain;
+    })->then(sub {
+        $ld->get_serial_number
+    })->then(sub(%versions) {
+        use Data::Dumper; warn Dumper \%versions;
+        Future->done;
+    })->then(sub {
+        $ld->get_firmware_version
+    })->then(sub(%versions) {
+        use Data::Dumper; warn Dumper \%versions;
+        Future->done
+    });
         #push @stuff, read_register($ld,0);
         #push @stuff, read_register($ld,1);
         #$ld->read_register(2)->retain;
@@ -200,12 +234,27 @@ sub initialize( $self ) {
         #$ld->set_register(2,0x02000819)->retain;
         #push @stuff, set_register($ld,2, );
         #push @stuff, button_color($ld, 7,127,127,0);
-    set_screen_color($ld,'left',0,0,0)->retain;
-    set_screen_color($ld,'middle',0,0,0)->retain;
-    set_screen_color($ld,'right',0,0,0)->retain;
-    set_screen_color($ld,'wheel',0,0,0)->retain;
-    $ld->load_image_button( image => $image, button => 3, center => 1, update => 1, )->retain;
-    $ld->load_image( screen => 'wheel', center => 1, image => $image, update => 1, )->retain;
+    $res = $res->then(sub {
+        $ld->set_screen_color('left',0,0,0)
+    })->then(sub {
+        $ld->set_screen_color('middle',0,0,0)
+    })->then(sub {
+        $ld->set_screen_color('right',0,0,0);
+    })->then(sub {
+        $ld->set_screen_color('wheel',0,0,0);
+    });
+    #$ld->load_image_button( image => $image, button => 3, center => 1, update => 1, )
+    #->catch(sub {
+    #    say "Image load error (image)";
+    #    say "$_" for @_;
+    #})->retain;
+    #$ld->load_image( screen => 'wheel', center => 1, image => $image, update => 1, )
+    #->catch(sub {
+    #    say "Image load error (image2)";
+    #    say "$_" for @_;
+    #})->retain;
+
+    return $res;
     #my @bits = map { pack 'n', $_ } (
     #    #0b0000000000000001, # g
     #    #0b0000000000000010, # g
