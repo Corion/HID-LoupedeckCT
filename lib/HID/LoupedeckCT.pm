@@ -85,7 +85,7 @@ has '_callbacks' => (
 
 has '_cbid' => (
     is => 'rw',
-    default => 0,
+    default => 1,
 );
 
 has '_ping' => (
