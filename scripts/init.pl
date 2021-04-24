@@ -13,8 +13,10 @@ use HID::LoupedeckCT;
 
 GetOptions(
     'uri=s' => \my $uri,
+    'image-dir=s' => \my $image_dir,
 ) or pod2usage(2);
 
+$image_dir //= '.';
 
 my $highlight = 7;
 my $brightness;
@@ -48,8 +50,8 @@ sub clamp_v($value, $min, $max) {
 #warn sprintf "[%d,%d,%d] %d - %016b", 63,63,63, $bit, $bit;
 #die;
 
-my $image = Imager->new( file => './IMG_8395.JPG');
-my $image2 = Imager->new( file => './IMG_8395.JPG');
+my $image = Imager->new( file => "$image_dir/IMG_8395.JPG");
+my $image2 = Imager->new( file => "$image_dir/IMG_8395.JPG");
 
 my $ld = HID::LoupedeckCT->new(
     maybe uri => $uri,
