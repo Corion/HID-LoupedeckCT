@@ -48,6 +48,7 @@ $ld->connect()->then(sub {
             use Data::Dumper;
             say Dumper $info->{data};
             say $log Dumper $info->{data};
+            sleep 5;
             exit;
         })->retain;
   };
