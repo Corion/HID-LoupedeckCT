@@ -130,18 +130,19 @@ $ld->on('key' => sub($ld,$info) {
 #});
 
 $ld->on('touch' => sub($ld,$info) {
-    if( defined $info->{button} ) {
+    if( defined $info->{button} and !$info->{released}) {
         my @r = $ld->button_rect( $info->{button});
         my ($screen,$x,$y,$w,$h) = @r;
         my $rel = !$info->{released};
-	$ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)
-    ->catch(sub {
-        say "Image load error (image2)";
-        say "$_" for @_;
-    })->retain;
-        #set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
-        #    $ld->redraw_screen($screen)
-        #})->retain;
+        say "Loading $image2";
+        $ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)
+        ->catch(sub {
+            say "Image load error (image2)";
+            say "$_" for @_;
+        })->retain;
+            #set_screen_color($ld,$screen,127*$rel,127*$rel,127*$rel,$x,$y,$w,$h)->then(sub {
+            #    $ld->redraw_screen($screen)
+            #})->retain;
     };
     say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
 });
@@ -292,4 +293,7 @@ sub initialize( $self ) {
 
 };
 
-Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+#Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+
+IO::Async::Loop->new()->run;

@@ -4,9 +4,9 @@ use warnings;
 
 use 5.020;
 
-use Mojo::UserAgent;
-use Mojo::WebSocket qw(WS_PING);
-use Mojo::Base 'Mojo::EventEmitter';
+use Net::Async::WebSocket::Client;
+#use Mojo::Base 'Mojo::EventEmitter';
+use IO::Async::Loop;
 
 use Moo 2;
 use PerlX::Maybe;
@@ -20,7 +20,8 @@ if( $is_windows ) {
     require IO::Interface::Simple; # for autodetection of the Loupedeck CT network "card"
 }
 
-use Future::Mojo;
+#use Future::Mojo;
+use IO::Async::Future;
 
 use experimental 'signatures';
 no warnings 'experimental';
@@ -64,7 +65,7 @@ The L<Mojo::UserAgent> used for talking to the Loupedeck CT.
 has 'ua' => (
     is => 'lazy',
     default => sub {
-        Mojo::UserAgent->new();
+        undef
     },
 );
 
@@ -91,6 +92,23 @@ has '_cbid' => (
 has '_ping' => (
     is => 'ro',
 );
+
+has '_listeners' => (
+    is => 'lazy',
+    default => sub { {} },
+);
+
+sub emit( $self, $event, @args ) {
+	my $listeners = $self->_listeners->{ $event } || [];
+	for my $l (@$listeners) {
+		$l->( $self, @args );
+	};
+}
+
+sub on( $self, $event, $cb ) {
+	$self->_listeners->{ $event } ||= [];
+	push @{ $self->_listeners->{ $event }}, $cb;
+}
 
 sub _get_cbid( $self ) {
     my $res = $self->_cbid;
@@ -120,6 +138,7 @@ sub list_loupedeck_devices_windows {
 
 sub list_loupedeck_devices_other {
     return map {
+#warn $_->address;
         $_->address =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
@@ -153,7 +172,8 @@ the reply from the device.
 sub send_command( $self, $command, $payload ) {
     my $tx = $self->tx;
     my $cbid = $self->_get_cbid;
-    $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
+    #$self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
+    $self->_callbacks->{ $cbid } = my $res = IO::Async::Future->new();
     #warn "Installed callback $cbid";
     my $p = pack( "nC", $command, $cbid) . $payload;
     my $vis = $p;
@@ -162,7 +182,8 @@ sub send_command( $self, $command, $payload ) {
     };
     $self->hexdump('> ',$vis);
 
-    $tx->send({ binary => $p });
+    #$tx->send({ binary => $p });
+    $tx->send_binary_frame( $p );
     return $res;
 }
 
@@ -267,86 +288,89 @@ sub button_rect( $self, $button ) {
 
 =cut
 
-sub connect( $self, $uri = $self->uri ) {
-    my $res = Future::Mojo->new(
-        $self->ua->ioloop,
+sub _handle_frame( $self, $raw ) {
+    if( $raw !~ /\A\x04\x00\00.\z/s ) {
+        $self->hexdump('< ',$raw);
+	};
+
+    # Dispatch it, if we have a receiver for it:
+    my @res = unpack 'nCa*', $raw;
+    my %res = (
+        code     => $res[0],
+        code_vis => sprintf( '%04x', $res[0] ),
+        cbid   => $res[1],
+        data => $res[2],
     );
-    my $tx = $self->ua->websocket_p($uri)->then(sub {
-        my ($tx) = @_;
-        say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
-        $self->{tx} = $tx;
-        $res->done($self);
-        $tx->on(binary => sub {
-            my ($tx, $raw) = @_;
 
-            if( $raw !~ /\A\x04\x00\00.\z/s ) {
-				$self->hexdump('< ',$raw);
-			};
-            # Dispatch it, if we have a receiver for it:
-            my @res = unpack 'nCa*', $raw;
-            my %res = (
-                code     => $res[0],
-                code_vis => sprintf( '%04x', $res[0] ),
-                cbid   => $res[1],
-                data => $res[2],
-            );
+    my $id = $res{ cbid };
+    my $f = delete $self->_callbacks->{ $id };
+    if( $res{ code } == 0x0501 ) { # small encoder turn or wheel turn
+        #$self->hexdump('* ', $res{ data });
+        my ($knob,$direction) = unpack 'Cc', $res{data};
 
-            my $id = $res{ cbid };
-            my $f = delete $self->_callbacks->{ $id };
-            if( $res{ code } == 0x0501 ) { # small encoder turn or wheel turn
-                #$self->hexdump('* ', $res{ data });
-                my ($knob,$direction) = unpack 'Cc', $res{data};
+        $self->emit('turn' => { id => $knob, direction => $direction });
 
-                $self->emit('turn' => { id => $knob, direction => $direction });
+    } elsif( $res{ code } == 0x0500 ) { # key press
+        #$self->hexdump('* ', $res{ data });
+        my ($key,$released) = unpack 'CC', $res{data};
 
-            } elsif( $res{ code } == 0x0500 ) { # key press
-                #$self->hexdump('* ', $res{ data });
-                my ($key,$released) = unpack 'CC', $res{data};
+        $self->emit('key' => { id => $key, released => $released });
 
-                $self->emit('key' => { id => $key, released => $released });
+    } elsif(    $res{ code } == 0x094d
+             or $res{ code } == 0x096d
+      ) { # touch press/slide
+        my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+        my $rel = $res{ code } == 0x096d;
 
-            } elsif(    $res{ code } == 0x094d
-                     or $res{ code } == 0x096d
-              ) { # touch press/slide
-                my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
-                my $rel = $res{ code } == 0x096d;
+        my $button = $self->button_from_xy( $x,$y );
 
-                my $button = $self->button_from_xy( $x,$y );
-
-                $self->emit('touch' => {
-                    finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
-                    button => $button,
-                });
-
-            } elsif(    $res{ code } == 0x0952
-                     or $res{ code } == 0x0972
-              ) { # touch press/slide
-                my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
-                my $rel = $res{ code } == 0x0972;
-
-                #my $button = $self->button_from_xy( $x,$y );
-
-                $self->emit('wheel_touch' => {
-                    finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
-                });
-
-            } else {
-                # Call the future
-                if( $f ) {
-                    eval {
-                        #warn "Dispatching callback $id";
-                        $f->done( \%res, $raw );
-                    };
-                    warn $@ if $@;
-                };
-            };
+        $self->emit('touch' => {
+            finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+            button => $button,
         });
 
-        #$self->{_ping} = Mojo::IOLoop->recurring( 10 => sub {
-        #    $tx->send([1, 0, 0, 0, WS_PING, 'ping']);
-        #});
-    });
-    $res
+    } elsif(    $res{ code } == 0x0952
+             or $res{ code } == 0x0972
+      ) { # touch press/slide
+        my ($finger, $x,$y) = unpack 'Cnnx', $res{data};
+        my $rel = $res{ code } == 0x0972;
+
+        #my $button = $self->button_from_xy( $x,$y );
+
+        $self->emit('wheel_touch' => {
+            finger => $finger, released => $rel, 'x' => $x, 'y' => $y,
+        });
+
+    } else {
+        # Call the future
+        if( $f ) {
+            eval {
+                #warn "Dispatching callback $id";
+                $f->done( \%res, $raw );
+            };
+            warn $@ if $@;
+        };
+    };
+}
+
+sub connect( $self, $uri = $self->uri ) {
+    #my $res = Future::Mojo->new(
+    #    $self->ua->ioloop,
+    #);
+    my $ws = Net::Async::WebSocket::Client->new(
+        on_raw_frame => sub {
+			require Data::Dumper;
+			warn "Unknown frame";
+			warn Data::Dumper::Dumper( \@_ );
+		},
+		on_binary_frame => sub( $ws, $frame ) {
+			$self->_handle_frame( $frame )
+		},
+    );
+    my $loop = IO::Async::Loop->new();
+    my $res = $loop->add($ws);
+    $self->{tx} = $ws;
+    return $ws->connect( url => $uri )
 };
 
 =head2 C<< ->read_register $register >>
@@ -440,6 +464,7 @@ sub set_backlight_level( $self, $level, %options ) {
                     : Future->done();
 
     $do_update->then(sub {
+		warn "Sending level $level";
         $self->send_command(0x0409,chr($level))
     });
 }
@@ -623,6 +648,9 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 
 sub load_image( $self, %options ) {
     # load the image
+    if( ! $options{ image } ) {
+		warn "Loading $options{file}";
+	};
     $options{ image } //= Imager->new( file => delete $options{ file });
     my $screen = delete $options{ screen } // 'middle';
 
@@ -651,10 +679,11 @@ sub load_image( $self, %options ) {
         my @colors = $img->getpixel(x => [0..$c], y => [$r]);
         $image_bits .= join "", map { _rgb($_->rgba) } @colors;
     }
-
+warn "Sending bits";
     my $res = $self->set_screen_bits($screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
     if( $options{ update }) {
         $res = $res->then(sub {
+			warn "Updating";
             $self->redraw_screen( $screen );
         });
     };
@@ -721,7 +750,6 @@ sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$heigh
         };
         $payload .= $bits;
         return $self->send_command( 0xff10, $payload );
-        #$self->redraw_screen($screen);
 }
 
 sub set_screen_color( $self, $screen, $r,$g,$b, $left=0, $top=0, $width=undef,$height=undef ) {
