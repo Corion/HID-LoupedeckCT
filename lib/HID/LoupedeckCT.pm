@@ -279,7 +279,9 @@ sub connect( $self, $uri = $self->uri ) {
         $tx->on(binary => sub {
             my ($tx, $raw) = @_;
 
-            $self->hexdump('< ',$raw);
+            if( $raw !~ /\A\x04\x00\00.\z/s ) {
+				$self->hexdump('< ',$raw);
+			};
             # Dispatch it, if we have a receiver for it:
             my @res = unpack 'nCa*', $raw;
             my %res = (
