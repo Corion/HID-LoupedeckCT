@@ -39,10 +39,13 @@ my $scanner = Filesys::Scanner->new(
     },
 );
 
-my $ld = HID::LoupedeckCT->new(
-    maybe uri => $uri,
-    verbose => 1,
-);
+sub init_ld() {
+    return HID::LoupedeckCT->new(
+        maybe uri => $uri,
+        verbose => 1,
+    );
+}
+my $ld = init_ld();
 
 my $dbus_system = Protocol::DBus::Client::Mojo::system();
 my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
@@ -116,13 +119,16 @@ my $newest_20 = $find_albums->run_p(
     say "Albums searched";
 });
 
-my $connected = $ld->connect()->then(sub {
-    return $ld->restore_backlight_level()->then(sub {
-        return Future->done( $ld );
+sub connect_ld() {
+    return $ld->connect()->then(sub {
+        return $ld->restore_backlight_level()->then(sub {
+            return Future->done( $ld );
+        });
+    })->on_ready(sub {
+        say "LD connected";
     });
-})->on_ready(sub {
-    say "LD connected";
-});
+}
+my $connected = connect_ld();
 
 my $msgr;
 my $sys_msgr;
@@ -248,16 +254,20 @@ sub set_backlight($status) {
             # except that we need to figure out where the network connection
             # went, so this is not yet working after hibernation/wakeup
             say "PrepareForSleep - restoring backlight level";
-            say "First, sleeping another 5 seconds";
-            sleep 5;
+            say "First, sleeping another 30 seconds";
+            sleep 30;
 
             # XXX This might need to be repeated / we might need to
             # reinitialize our websocket connection here
-            $res = $ld->restore_backlight_level
-            ->catch(sub {
-                warn "Error when restoring";
-                warn Dumper \@_;
-            });
+            $ld = init_ld();
+            say "Reconnecting LD";
+            connect_ld->then(sub {
+                $res = $ld->restore_backlight_level
+                ->catch(sub {
+                    warn "Error when restoring";
+                    warn Dumper \@_;
+                });
+            })->retain;
             say "Re-acquiring (next) sleep inhibitor";
             init_sleep_inhibitor()->retain;
         };
