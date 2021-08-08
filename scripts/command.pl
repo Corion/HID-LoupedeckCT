@@ -9,6 +9,7 @@ use POSIX 'strftime';
 use PerlX::Maybe;
 
 use HID::LoupedeckCT;
+use Time::HiRes;
 
 GetOptions(
     'uri=s' => \my $uri,
@@ -52,6 +53,7 @@ my $sequence = $ld->connect()->then(
 for my $c (@commands) {
     my ($command,$parameters) = @$c;
     $sequence = $sequence->then(sub {
+        sleep 0.5;
         #my ($command,$parameters) = ($command,$parameters);
         my $res = eval {
             $ld->send_command($command, $parameters)->then(sub($info,$data) {
