@@ -50,9 +50,9 @@ my $ld = init_ld();
 my $dbus_system = Protocol::DBus::Client::Mojo::system();
 my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
 
-if( ! $ld->uri ) {
-    die "Couldn't autodetect Loupedeck CT, sorry";
-}
+#if( ! $ld->uri ) {
+#    die "Couldn't autodetect Loupedeck CT, sorry";
+#}
 say "Connecting to " . $ld->uri;
 
 my @albums;
@@ -119,7 +119,9 @@ my $newest_20 = $find_albums->run_p(
     } @items;
     Future->done(@revived)
 })->on_ready(sub {
-    say "Albums searched";
+    my @count = $_[0]->result;
+    my $count = 0+@count;
+    say "Albums searched ($count found)";
 });
 
 sub connect_ld() {
@@ -128,7 +130,7 @@ sub connect_ld() {
             return Future->done( $ld );
         });
     })->on_ready(sub {
-        say "LD connected";
+        say "*** LD connected";
     });
 }
 my $connected = connect_ld();
@@ -279,6 +281,9 @@ sub set_backlight($status) {
                     warn "Error when restoring";
                     warn Dumper \@_;
                 });
+            })->then(sub {
+                reload_album_art( @albums );
+
             })->retain;
             say "Re-acquiring (next) sleep inhibitor";
             init_sleep_inhibitor()->retain;
@@ -344,27 +349,21 @@ $dbus_system->on_signal(sub($msg) {
     #if( $msg->
 });
 
-my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session_ready )->then(sub($ld_f,$newest_20_f, $system_dbus, $session_dbus) {
-    say "Initializing screen";
-    my $button = 1;
-    my @newest_20 = $newest_20_f->get;
-    my $ld = $ld_f->get;
-    say sprintf "Initializing Loupedeck screen (%d items)", 0+@newest_20;
-
-    #my @image;
-
+sub reload_album_art( @albums ) {
     my $load = Future->done;
-    #my @images;
 
-    for(@newest_20) {
-        $albums[ $button ] = $_;
-        if( my $img = $_->album_art ) {
+    for my $button (1..$#albums) {
+        my $album = $albums[ $button ];
+        if( !$album) {
+            say "Skipping album $button (no info)";
+        };
+        if( my $img = $album->album_art ) {
             my $btn = $button;
             say sprintf "Queueing %s", $img->name;
             #push @images,
             $load = $load->then( sub {
             say sprintf "Loading %s on %s", $img->name, $btn;
-                $ld->load_image_button( button => $btn, file => $img->name, center => 1, update => 1 )
+                $ld->load_image_button( button => $btn, file => $img->name, center => 1 )
                 ->on_ready(sub {
                     say sprintf "Image %s done", $img->name;
                 })->catch(sub {
@@ -373,17 +372,27 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
                 });
             });
         } else {
-            say sprintf "%s has no image file", $_->name;
+            say sprintf "%s has no image file", $album->name;
         };
-        $button += 1;
     };
     #my $load = Future->wait_all(@images);
     return $load->then(sub {
         say "Redrawing screen";
         return $ld->redraw_screen('middle');
     });
+}
+
+my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session_ready )->then(sub($ld_f,$newest_20_f, $system_dbus, $session_dbus) {
+    say "Initializing screen";
+    # Button 0 stays empty
+    @albums = (undef, $newest_20_f->get);
+    my $ld = $ld_f->get;
+    say sprintf "Initializing Loupedeck screen (%d items)", $#albums;
+
+    #my @image;
+
     #Future->done
-    $load
+    return reload_album_art( @albums );
 })->catch(sub {
     use Data::Dumper;
     say Dumper \@_;

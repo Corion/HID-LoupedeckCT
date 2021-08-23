@@ -6,7 +6,9 @@ use 5.020;
 
 use Mojo::UserAgent;
 use Mojo::WebSocket qw(WS_PING);
+use Mojo::Transaction::WebSocket::Serial;
 use Mojo::Base 'Mojo::EventEmitter';
+use Carp 'croak';
 
 use Moo 2;
 use PerlX::Maybe;
@@ -151,7 +153,6 @@ the reply from the device.
 =cut
 
 sub send_command( $self, $command, $payload ) {
-    my $tx = $self->tx;
     my $cbid = $self->_get_cbid;
     $self->_callbacks->{ $cbid } = my $res = Future::Mojo->new($self->ua->ioloop);
     #warn "Installed callback $cbid";
@@ -162,7 +163,7 @@ sub send_command( $self, $command, $payload ) {
     };
     $self->hexdump('> ',$vis);
 
-    $tx->send({ binary => $p });
+    $self->tx->send({ binary => $p });
     return $res;
 }
 
@@ -259,26 +260,7 @@ sub button_rect( $self, $button ) {
     }
 };
 
-=head2 C<< ->connect $uri >>
-
-  $ld->connect->then(sub {
-      say "Connected to Loupedeck";
-  });
-
-=cut
-
-sub connect( $self, $uri = $self->uri ) {
-    my $res = Future::Mojo->new(
-        $self->ua->ioloop,
-    );
-    my $tx = $self->ua->websocket_p($uri)->then(sub {
-        my ($tx) = @_;
-        say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
-        $self->{tx} = $tx;
-        $res->done($self);
-        $tx->on(binary => sub {
-            my ($tx, $raw) = @_;
-
+sub on_ld_message( $self, $raw ) {
             if( $raw !~ /\A\x04\x00\00.\z/s ) {
 				$self->hexdump('< ',$raw);
 			};
@@ -340,13 +322,54 @@ sub connect( $self, $uri = $self->uri ) {
                     warn $@ if $@;
                 };
             };
-        });
+};
 
-        #$self->{_ping} = Mojo::IOLoop->recurring( 10 => sub {
-        #    $tx->send([1, 0, 0, 0, WS_PING, 'ping']);
-        #});
+=head2 C<< ->connect $uri >>
+
+  $ld->connect->then(sub {
+      say "Connected to Loupedeck";
+  });
+
+=cut
+
+sub connect( $self, $uri = $self->uri ) {
+
+    #$res->on_ready(sub {
+	#	say "->connect() result is ready";
+	#});
+
+    my $do_connect;
+    if( $uri ) {
+
+		$do_connect = $self->ua->websocket_p($uri);
+	} else {
+
+		$do_connect = Mojo::Transaction::WebSocket::Serial->new(name => '/dev/ttyACM0')
+		    ->open_p;
+	};
+    return $do_connect->then(sub {
+        my ($tx) = @_;
+        # say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
+        $self->{tx} = $tx;
+
+        #$tx->on(close => sub {
+		#	say "--- closed";
+		#});
+		#
+        #$tx->on(error => sub {
+		#	say "--- error @_";
+		#});
+
+        #$tx->on(write => sub( $tx, $data ) {
+		#	say "--- Write <$data>";
+		#	$self->hexdump('>', $data);
+		#});
+
+        $tx->on('binary' => sub( $tx, $msg ) {
+			$self->on_ld_message( $msg );
+		});
+
     });
-    $res
 };
 
 =head2 C<< ->read_register $register >>
@@ -364,6 +387,7 @@ These registers are mostly used to store configuration values on the device.
 =cut
 
 sub read_register( $self, $register ) {
+	say "->read_register($register)";
     return $self->send_command(0x041A, chr($register))->then(sub($info,$data) {
         #use Data::Dumper; warn Dumper [$info,$data];
         my( $register,$value ) = unpack 'CN', $info->{data};
@@ -503,6 +527,7 @@ sub set_flashdrive( $self, $value ) {
 }
 
 sub get_firmware_version( $self ) {
+	say "Request Firmware version";
     return $self->send_command(0x0307, '')->then(sub( $info, $data ) {
 
         my @versions = unpack 'a3a3a3', $info->{ data };
@@ -623,7 +648,12 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 
 sub load_image( $self, %options ) {
     # load the image
-    $options{ image } //= Imager->new( file => delete $options{ file });
+    if( ! defined $options{ image }) {
+		my $fn = delete $options{ file };
+		$options{ image } = Imager->new( file => $fn)
+		    or croak "Couldn't load image from '$fn': $!"
+	};
+
     my $screen = delete $options{ screen } // 'middle';
 
     my $x = delete $options{ left };
@@ -634,7 +664,6 @@ sub load_image( $self, %options ) {
     my $img = delete $options{ image };
 
     $img = $img->scale(xpixels => $w, ypixels => $h, type => 'min');
-
     if( delete $options{ center }) {
         $x += int(($w-$img->getwidth)/2);
         $y += int(($h-$img->getheight)/2);
@@ -651,7 +680,7 @@ sub load_image( $self, %options ) {
         my @colors = $img->getpixel(x => [0..$c], y => [$r]);
         $image_bits .= join "", map { _rgb($_->rgba) } @colors;
     }
-
+say "Writing";
     my $res = $self->set_screen_bits($screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
     if( $options{ update }) {
         $res = $res->then(sub {
@@ -720,6 +749,7 @@ sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$heigh
             $payload .= "\0";
         };
         $payload .= $bits;
+        say length($payload);
         return $self->send_command( 0xff10, $payload );
         #$self->redraw_screen($screen);
 }
