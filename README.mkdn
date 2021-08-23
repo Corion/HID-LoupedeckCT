@@ -27,7 +27,7 @@ If not given, this is autodetected.
 
 ## `ua`
 
-The [Mojo::UserAgent](https://metacpan.org/pod/Mojo::UserAgent) used for talking to the Loupedeck CT.
+The [Mojo::UserAgent](https://metacpan.org/pod/Mojo%3A%3AUserAgent) used for talking to the Loupedeck CT.
 
 ## `tx`
 
@@ -61,7 +61,7 @@ Helper to return a button number from X/Y touch coordinates
 
 ## `->button_rect $button`
 
-    my( $x1,$y1,$x2,$y2 ) = $ld->button_rect(6);
+    my( $screen, $x,$y,$w,$h ) = $ld->button_rect(6);
 
 Helper to return rectangle coordinates from a button number
 
@@ -101,13 +101,19 @@ Reads the value of the backlight level stored in the device.
 
 This level can deviate from the actual level.
 
-## `->set_backlight_level`
+## `->set_backlight_level $level, %options`
 
     $ld->set_backlight_level(9)->retain;
 
-Sets the value of the backlight level and stores in the device.
+Sets the value of the backlight level and optionally stores in the device
+for persistence across machines/power loss.
 
 The level ranges from 0 (off) to 9 (bright).
+
+If you pass in the `persist` option, the backlight level stored in the
+permanent register 2 will be updated.
+
+    $ld->set_backlight_level(9, persist => 1)->retain;
 
 ## `->restore_backlight_level`
 
@@ -116,7 +122,7 @@ The level ranges from 0 (off) to 9 (bright).
 Restores the value of the backlight level to the level stored
 on the device.
 
-Use this method on the startup of your program.
+Use this method at the startup of your program.
 
 ## `->vibrate $pattern`
 
@@ -134,6 +140,12 @@ Enables or disables the built-in flash drive
 You need to unplug and replug the device to get the flash drive
 recognized by your system.
 
+## `->reset`
+
+    $ld->reset
+
+Resets/restarts the Loupedeck device
+
 ## `->redraw_screen`
 
     $ld->redraw_screen->retain;
@@ -148,16 +160,12 @@ Sets the backlight colour for a physical button. The button
 values are 7 to 14 for the round buttons and 15 to 26 for the square
 buttons.
 
+## `->load_image`
+
+## `->load_image_button`
+
 # SEE ALSO
 
 [https://github.com/bitfocus/loupedeck-ct/blob/master/index.js](https://github.com/bitfocus/loupedeck-ct/blob/master/index.js)
 
-[https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua](https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeckct/init.lua)
-
-# POD ERRORS
-
-Hey! **The above document had some coding errors, which are explained below:**
-
-- Around line 533:
-
-    &#x3d;back without =over
+[https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeck/init.lua](https://github.com/CommandPost/CommandPost/blob/develop/src/extensions/hs/loupedeck/init.lua)
