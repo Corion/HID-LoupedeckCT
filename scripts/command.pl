@@ -54,7 +54,6 @@ for my $c (@commands) {
     my ($command,$parameters) = @$c;
     $sequence = $sequence->then(sub {
         sleep 0.5;
-        #my ($command,$parameters) = ($command,$parameters);
         my $res = eval {
             $ld->send_command($command, $parameters)->then(sub($info,$data) {
                 eval {
@@ -79,6 +78,7 @@ $sequence->then(sub {
     # unknown request/response 0x0503 # - serial number
     # unknown request/response 0x0504 # - selftest
     # unknown request/response 0x0304 # - selftest
+    # unknown request/response 0x04000083 ???
     # unknown request/response 0x0404 (selftest)
     # unknown request/response 0x0406 "\x00" reset/loupedeck circle (param are anything)
     # unknown request/response 0x0407 # firmware version
@@ -125,6 +125,7 @@ $sequence->then(sub {
     # unknown request/response 0x0422 # -
     # unknown request/response 0x0423 # \x00 x 17 -> \x00\x00\x00 (RGB?)
     # unknown request/response 0x0423 # \x00 x 27 -> \x00\xff\x00 (RGB?)
+    # unknown request/response 0x180d # ???
     # 425, 426 - no reply
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;

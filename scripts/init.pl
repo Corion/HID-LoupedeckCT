@@ -130,11 +130,11 @@ $ld->on('key' => sub($ld,$info) {
 #});
 
 $ld->on('touch' => sub($ld,$info) {
-    if( defined $info->{button} ) {
+    if( defined $info->{button} && !$info->{released}) {
         my @r = $ld->button_rect( $info->{button});
         my ($screen,$x,$y,$w,$h) = @r;
         my $rel = !$info->{released};
-	$ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)
+        $ld->load_image_button(image => $image2, button => $info->{button}, center => 1,update => 1)
     ->catch(sub {
         say "Image load error (image2)";
         say "$_" for @_;

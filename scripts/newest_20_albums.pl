@@ -42,7 +42,7 @@ my $scanner = Filesys::Scanner->new(
 sub init_ld() {
     return HID::LoupedeckCT->new(
         maybe uri => $uri,
-        verbose => 1,
+              verbose => 1,
     );
 }
 my $ld = init_ld();
@@ -50,6 +50,9 @@ my $ld = init_ld();
 my $dbus_system = Protocol::DBus::Client::Mojo::system();
 my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
 
+if( ! $ld->uri ) {
+    die "Couldn't autodetect Loupedeck CT, sorry";
+}
 say "Connecting to " . $ld->uri;
 
 my @albums;
@@ -257,6 +260,15 @@ sub set_backlight($status) {
             say "First, sleeping another 30 seconds";
             sleep 30;
 
+            say "Found LoupeDeck devices";
+            for my $uri (HID::LoupedeckCT->list_loupedeck_devices()) {
+                say $uri;
+            };
+            say "Current device we think we use";
+            say $ld->uri;
+
+            # Maybe we should loop until we (re)find the LD?!
+
             # XXX This might need to be repeated / we might need to
             # reinitialize our websocket connection here
             $ld = init_ld();
@@ -339,27 +351,42 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
     my $ld = $ld_f->get;
     say sprintf "Initializing Loupedeck screen (%d items)", 0+@newest_20;
 
-    my @image;
+    #my @image;
 
     my $load = Future->done;
+    #my @images;
 
     for(@newest_20) {
         $albums[ $button ] = $_;
         if( my $img = $_->album_art ) {
-            my $b = $button;
+            my $btn = $button;
+            say sprintf "Queueing %s", $img->name;
+            #push @images,
             $load = $load->then( sub {
-                $ld->load_image_button( button => $b, file => $img->name, center => 1, update => 1 );
+            say sprintf "Loading %s on %s", $img->name, $btn;
+                $ld->load_image_button( button => $btn, file => $img->name, center => 1, update => 1 )
+                ->on_ready(sub {
+                    say sprintf "Image %s done", $img->name;
+                })->catch(sub {
+                    use Data::Dumper;
+                    warn Dumper \@_;
+                });
             });
         } else {
             say sprintf "%s has no image file", $_->name;
         };
         $button += 1;
     };
+    #my $load = Future->wait_all(@images);
     return $load->then(sub {
         say "Redrawing screen";
         return $ld->redraw_screen('middle');
     });
-    Future->done
+    #Future->done
+    $load
+})->catch(sub {
+    use Data::Dumper;
+    say Dumper \@_;
 })->retain;
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
