@@ -40,13 +40,43 @@ my $scanner = Filesys::Scanner->new(
 );
 
 my @albums;
-sub init_ld() {
-    return HID::LoupedeckCT->new(
+
+sub init_ld($uri) {
+    my $ld = HID::LoupedeckCT->new(
         maybe uri => $uri,
               verbose => 1,
     );
+
+    $ld->on('hexdump' => sub {
+        eval {
+            my ($ld, $prefix,$line) = @_;
+            say $prefix . $line;
+        }; warn $@ if $@;
+    });
+
+
+    $ld->on('touch' => sub($ld,$info) {
+        # Middle button, not side sliders
+        if( defined $info->{button} and 0 < $info->{button} and $info->{button} < 13 ) {
+            my @r = $ld->button_rect( $info->{button});
+            my ($screen,$x,$y,$w,$h) = @r;
+            my $rel = !$info->{released};
+
+            if( $info->{released} ) {
+                say $info->{button};
+                say $albums[ $info->{button} ]->name;
+
+                play_album($albums[ $info->{button} ]);
+            };
+
+        };
+
+        say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
+    });
+
+    return $ld
 }
-my $ld = init_ld();
+my $ld = init_ld($uri);
 
 my $dbus_system = Protocol::DBus::Client::Mojo::system();
 my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
@@ -72,37 +102,6 @@ sub play_album( $album ) {
     };
 }
 
-# my $action =
-
-# Detect hibernate/wakeup
-# https://www.freedesktop.org/wiki/Software/systemd/logind/
-
-$ld->on('hexdump' => sub {
-    eval {
-        my ($ld, $prefix,$line) = @_;
-        say $prefix . $line;
-    }; warn $@ if $@;
-});
-
-
-$ld->on('touch' => sub($ld,$info) {
-    # Middle button, not side sliders
-    if( defined $info->{button} and 0 < $info->{button} and $info->{button} < 13 ) {
-        my @r = $ld->button_rect( $info->{button});
-        my ($screen,$x,$y,$w,$h) = @r;
-        my $rel = !$info->{released};
-
-        if( $info->{released} ) {
-            say $info->{button};
-            say $albums[ $info->{button} ]->name;
-
-            play_album($albums[ $info->{button} ]);
-        };
-
-    };
-
-    say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
-});
 
 my $find_albums = Mojo::IOLoop::Subprocess->new();
 my $newest_20 = $find_albums->run_p(
