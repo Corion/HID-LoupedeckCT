@@ -102,25 +102,29 @@ sub play_album( $album ) {
     };
 }
 
+sub rescan_files( @directories ) {
+    my $find_albums = Mojo::IOLoop::Subprocess->new();
+    my $newest_20 = $find_albums->run_p(
+        sub {
+            map { my $res = eval { $_->as_plain }; warn $@ if $@; $res } @{ $scanner->scan(\@directories) };
+        },
+    )->with_roles('+Futurify')->futurify->catch(sub {
+        warn Dumper \@_;
+        exit;
+    })->then( sub(@items) {
+        my @revived =map {
+            Audio::Directory->from_plain($_)
+        } @items;
+        Future->done(@revived)
+    })->on_ready(sub {
+        my @count = $_[0]->result;
+        my $count = 0+@count;
+        say "Albums searched ($count found)";
+    });
+    return $newest_20;
+}
 
-my $find_albums = Mojo::IOLoop::Subprocess->new();
-my $newest_20 = $find_albums->run_p(
-    sub {
-        map { my $res = eval { $_->as_plain }; warn $@ if $@; $res } @{ $scanner->scan(\@ARGV) };
-    },
-)->with_roles('+Futurify')->futurify->catch(sub {
-    warn Dumper \@_;
-    exit;
-})->then( sub(@items) {
-    my @revived =map {
-        Audio::Directory->from_plain($_)
-    } @items;
-    Future->done(@revived)
-})->on_ready(sub {
-    my @count = $_[0]->result;
-    my $count = 0+@count;
-    say "Albums searched ($count found)";
-});
+my $newest_20 = rescan_files( @ARGV );
 
 sub connect_ld() {
     return $ld->connect()->then(sub {
