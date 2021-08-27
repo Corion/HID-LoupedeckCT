@@ -39,6 +39,7 @@ my $scanner = Filesys::Scanner->new(
     },
 );
 
+my @albums;
 sub init_ld() {
     return HID::LoupedeckCT->new(
         maybe uri => $uri,
@@ -54,8 +55,6 @@ my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
 #    die "Couldn't autodetect Loupedeck CT, sorry";
 #}
 say "Connecting to " . $ld->uri;
-
-my @albums;
 
 my (@mp3_actions) = mime_applications('audio/mpeg');
 my (@pl_actions) = mime_applications('audio/x-mpegurl');
