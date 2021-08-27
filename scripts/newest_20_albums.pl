@@ -275,7 +275,7 @@ sub set_backlight($status) {
 
             # XXX This might need to be repeated / we might need to
             # reinitialize our websocket connection here
-            $ld = init_ld();
+            $ld = init_ld($uri);
             say "Reconnecting LD";
             connect_ld->then(sub {
                 $res = $ld->restore_backlight_level
@@ -385,7 +385,7 @@ sub reload_album_art( @albums ) {
 }
 
 my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session_ready )->then(sub($ld_f,$newest_20_f, $system_dbus, $session_dbus) {
-    say "Initializing screen";
+    #say "Initializing screen";
     # Button 0 stays empty
     @albums = (undef, $newest_20_f->get);
     my $ld = $ld_f->get;
@@ -399,5 +399,15 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
     use Data::Dumper;
     say Dumper \@_;
 })->retain;
+
+# Rescan all music files every 30 minutes
+my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
+    rescan_files(@ARGV)->then(sub( @new_albums) {
+        say "Refreshing album list from @ARGV";
+        @albums = (undef, @new_albums);
+        say sprintf "Initializing Loupedeck screen (%d items)", $#albums;
+        return reload_album_art( @albums );
+    });
+});
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
