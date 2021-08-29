@@ -40,6 +40,7 @@ my $scanner = Filesys::Scanner->new(
 );
 
 my @albums;
+my %actions;
 
 sub init_ld($uri) {
     my $ld = HID::LoupedeckCT->new(
@@ -72,6 +73,13 @@ sub init_ld($uri) {
         };
 
         say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
+    });
+
+    $ld->on('key' => sub( $ld, $info ) {
+        return unless $info->{released};
+        if( my $cb = $actions{ $info->{id}}) {
+            $cb->( $info );
+        };
     });
 
     return $ld
@@ -410,19 +418,27 @@ my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
     })->retain;
 });
 
-my %last_running;
+
 sub rescan_processes {
     state %last_running;
 
     my @check = (
         { name => 'Webcam',
           cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
-          running_action => sub( $pid ) {
-              $ld->set_button_color(15,255,0,0)->retain;
+          running_action => sub( $cfg, $pid ) {
+              $ld->set_button_color($cfg->{button},255,0,0)->retain;
+              $actions{ $cfg->{button}} = sub {
+                  $pid =~ /(\d+)$/ or die "No pid to kill?!";
+                  kill KILL => $1;
+              },
           },
-          none_action    => sub( $pid ) {
-              $ld->set_button_color(15,0,0,0)->retain;
-          }
+          none_action    => sub( $cfg, $pid ) {
+              $ld->set_button_color($cfg->{button},0,0,0)->retain;
+              $actions{ $cfg->{button}} = sub {
+                  system("gphoto2 --stdout --capture-movie | ffmpeg -hide_banner -i - -vcodec rawvideo -tune zerolatency -pix_fmt yuv420p -threads 0 -f v4l2 /dev/video1 &");
+              },
+          },
+          button => 15,
         },
     );
 
@@ -440,8 +456,7 @@ sub rescan_processes {
             my $name = $test->{name};
             my $cmdline_re = $test->{cmdline};
             if( $cmdline_re and $cmdline =~ /$cmdline_re/ ) {
-                $running{ $name } = $test;
-                warn "$name is running";
+                $running{ $name } = { test => $test, pid => $pid };
             } else {
                 # So we know that this has been checked
                 $running{ $name } ||= undef;
@@ -452,13 +467,16 @@ sub rescan_processes {
     # Only trigger when the sense changes between running/not running
     for my $test (@check) {
         my $name = $test->{name};
-        if( $running{ $name } and ! $last_running{ $name }) {
-            $test->{running_action}->( $running{$name} );
-        } elsif( !$running{ $name } and $last_running{ $name }) {
-            $test->{none_action}->( $running{$name });
-        } elsif( ! exists $last_running{ $name }) {
+        if( ! exists $last_running{ $name }) {
             # This is the first time we check at all, so initialize to "not running"
-            $test->{none_action}->( $running{$name});
+            warn "Initializing '$name' at start";
+            $test->{none_action}->( $test, $running{ $name }->{pid});
+        } elsif( $running{ $name } and ! $last_running{ $name }->{pid}) {
+            warn "'$name' was newly launched";
+            $test->{running_action}->( $test, $running{$name}->{pid} );
+        } elsif( !$running{ $name } and $last_running{ $name }->{pid}) {
+            warn "'$name' has gone away";
+            $test->{none_action}->( $test, $running{ $name }->{pid});
         } else {
             # Nothing to be done
         }
