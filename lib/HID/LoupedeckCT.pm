@@ -638,7 +638,7 @@ buttons.
 =cut
 
 sub set_button_color( $self, $button, $r, $g, $b ) {
-    my $payload = pack "cccc", $button, $r, $g, $b;
+    my $payload = pack "CCCC", $button, $r, $g, $b;
     $self->send_command( 0x0702, $payload );
 }
 
