@@ -407,7 +407,69 @@ my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
         @albums = (undef, @new_albums);
         say sprintf "Initializing Loupedeck screen (%d items)", $#albums;
         return reload_album_art( @albums );
-    });
+    })->retain;
+});
+
+my %last_running;
+sub rescan_processes {
+    state %last_running;
+
+    my @check = (
+        { name => 'Webcam',
+          cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
+          running_action => sub( $pid ) {
+              $ld->set_button_color(15,255,0,0)->retain;
+          },
+          none_action    => sub( $pid ) {
+              $ld->set_button_color(15,0,0,0)->retain;
+          }
+        },
+    );
+
+    my %running;
+
+    # This is very specific to Linux
+    for my $pid (glob '/proc/*') {
+        open my $fh, '<', "$pid/cmdline"
+            or next;
+        local $/;
+        my $cmdline = <$fh>;
+        close $fh;
+
+        for my $test (@check) {
+            my $name = $test->{name};
+            my $cmdline_re = $test->{cmdline};
+            if( $cmdline_re and $cmdline =~ /$cmdline_re/ ) {
+                $running{ $name } = $test;
+                warn "$name is running";
+            } else {
+                # So we know that this has been checked
+                $running{ $name } ||= undef;
+            }
+        };
+    }
+
+    # Only trigger when the sense changes between running/not running
+    for my $test (@check) {
+        my $name = $test->{name};
+        if( $running{ $name } and ! $last_running{ $name }) {
+            $test->{running_action}->( $running{$name} );
+        } elsif( !$running{ $name } and $last_running{ $name }) {
+            $test->{none_action}->( $running{$name });
+        } elsif( ! exists $last_running{ $name }) {
+            # This is the first time we check at all, so initialize to "not running"
+            $test->{none_action}->( $running{$name});
+        } else {
+            # Nothing to be done
+        }
+    }
+
+    %last_running = %running;
+}
+
+# Rescan if a process is running
+my $refresh = Mojo::IOLoop->recurring( 1 => sub {
+    rescan_processes()
 });
 
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
