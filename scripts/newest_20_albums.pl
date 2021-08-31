@@ -442,7 +442,7 @@ sub rescan_processes {
         { name => 'Audio controls',
           cmdline => qr/\bpavucontrol-qt\0/ms,
           running_action => sub( $cfg, $pid ) {
-              $ld->set_button_color($cfg->{button},0,127,0,0)->retain;
+              $ld->set_button_color($cfg->{button},0,127,0)->retain;
               $actions{ $cfg->{button}} = sub {
                   system('xdotool search --class "pavucontrol-qt" windowactivate');
               },
