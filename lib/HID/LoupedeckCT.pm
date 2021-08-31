@@ -387,7 +387,6 @@ These registers are mostly used to store configuration values on the device.
 =cut
 
 sub read_register( $self, $register ) {
-	say "->read_register($register)";
     return $self->send_command(0x041A, chr($register))->then(sub($info,$data) {
         #use Data::Dumper; warn Dumper [$info,$data];
         my( $register,$value ) = unpack 'CN', $info->{data};
@@ -527,7 +526,6 @@ sub set_flashdrive( $self, $value ) {
 }
 
 sub get_firmware_version( $self ) {
-	say "Request Firmware version";
     return $self->send_command(0x0307, '')->then(sub( $info, $data ) {
 
         my @versions = unpack 'a3a3a3', $info->{ data };
