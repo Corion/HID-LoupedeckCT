@@ -690,6 +690,21 @@ sub load_image( $self, %options ) {
 
 =head2 C<< ->load_image_button >>
 
+  $ld->load_image_button(
+      button  => 1,
+      file    => 'logo.jpg',
+      refresh => 1,
+  )->get;
+
+  $ld->load_image_button(
+      button  => 1,
+      string  => "\N{DROMEDARY CAMEL}",
+      refresh => 1,
+      bgcolor => [30,30,60],
+  )->get;
+
+Loads one of the touchscreen buttons with an image file or string.
+
 =cut
 
 sub load_image_button( $self, %options ) {
@@ -697,6 +712,54 @@ sub load_image_button( $self, %options ) {
 
     my @r = $self->button_rect( $button);
     my ($screen,$x,$y,$w,$h) = @r;
+
+    if( my $str  = delete $options{ string }) {
+        my $bg   = delete $options{ bgcolor } || [0,80,0];
+        my $fg   = delete $options{ color } || [255,255,255];
+        my $font = delete $options{ font } || '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
+
+        # Upgrade to Imager::Color objects
+        for ($bg,$fg) {
+            if( ref $_ eq 'ARRAY' ) {
+                $_ = Imager::Color->new( @$_ );
+            }
+        };
+
+        # We should size the string first and then scale things down to the target
+        # ... or draw the string as large as it is, and leave the rest to the
+        # lower levels of image aligning
+        $font = Imager::Font->new( file => $font, type => 'ft2', size => $h, color => $fg, );
+
+        my $btn1 = Imager->new(
+            xsize => $w,
+            ysize => $h,
+        );
+        # Size the string
+        my ($l,$t,$r,$b) = $font->align( string => $str,
+                      x => $w / 2,
+                      y => $h / 2,
+                      halign => 'center',
+                      valign => 'center',
+                      image => $btn1,
+                    );
+        my ($rw, $rh) = ($r-$l, $b-$t);
+        my $sz = $rw > $rh ? $rw : $rh;
+        my $btn = Imager->new(
+            xsize => $sz,
+            ysize => $sz,
+        );
+        # Paint the background
+        $btn->box( filled => 1, color => $bg );
+        # Draw the font
+        $font->align( string => $str,
+                      x => $sz / 2,
+                      y => $sz / 2,
+                      halign => 'center',
+                      valign => 'center',
+                      image => $btn,
+                    );
+        $options{ image } = $btn;
+    }
 
     return $self->load_image(
               screen => $screen,
