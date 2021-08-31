@@ -262,8 +262,8 @@ sub button_rect( $self, $button ) {
 
 sub on_ld_message( $self, $raw ) {
             if( $raw !~ /\A\x04\x00\00.\z/s ) {
-				$self->hexdump('< ',$raw);
-			};
+                $self->hexdump('< ',$raw);
+            };
             # Dispatch it, if we have a receiver for it:
             my @res = unpack 'nCa*', $raw;
             my %res = (
@@ -335,39 +335,39 @@ sub on_ld_message( $self, $raw ) {
 sub connect( $self, $uri = $self->uri ) {
 
     #$res->on_ready(sub {
-	#	say "->connect() result is ready";
-	#});
+    #   say "->connect() result is ready";
+    #});
 
     my $do_connect;
     if( $uri ) {
 
-		$do_connect = $self->ua->websocket_p($uri);
-	} else {
+        $do_connect = $self->ua->websocket_p($uri);
+    } else {
 
-		$do_connect = Mojo::Transaction::WebSocket::Serial->new(name => '/dev/ttyACM0')
-		    ->open_p;
-	};
+        $do_connect = Mojo::Transaction::WebSocket::Serial->new(name => '/dev/ttyACM0')
+            ->open_p;
+    };
     return $do_connect->then(sub {
         my ($tx) = @_;
         # say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
         $self->{tx} = $tx;
 
         #$tx->on(close => sub {
-		#	say "--- closed";
-		#});
-		#
+        #   say "--- closed";
+        #});
+        #
         #$tx->on(error => sub {
-		#	say "--- error @_";
-		#});
+        #   say "--- error @_";
+        #});
 
         #$tx->on(write => sub( $tx, $data ) {
-		#	say "--- Write <$data>";
-		#	$self->hexdump('>', $data);
-		#});
+        #   say "--- Write <$data>";
+        #   $self->hexdump('>', $data);
+        #});
 
         $tx->on('binary' => sub( $tx, $msg ) {
-			$self->on_ld_message( $msg );
-		});
+            $self->on_ld_message( $msg );
+        });
 
     });
 };
@@ -649,10 +649,10 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 sub load_image( $self, %options ) {
     # load the image
     if( ! defined $options{ image }) {
-		my $fn = delete $options{ file };
-		$options{ image } = Imager->new( file => $fn)
-		    or croak "Couldn't load image from '$fn': $!"
-	};
+        my $fn = delete $options{ file };
+        $options{ image } = Imager->new( file => $fn)
+            or croak "Couldn't load image from '$fn': $!"
+    };
 
     my $screen = delete $options{ screen } // 'middle';
 
