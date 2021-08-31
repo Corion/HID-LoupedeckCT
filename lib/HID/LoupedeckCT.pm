@@ -372,6 +372,23 @@ sub connect( $self, $uri = $self->uri ) {
     });
 };
 
+=head2 C<< ->disconnect >>
+
+  $ld->disconnect->get;
+
+Disconnects gracefully from the Loupedeck.
+
+=cut
+
+sub disconnect( $self ) {
+	say "Disconnecting websocket";
+	return $self->tx->finish
+}
+
+sub DESTROY {
+	$_[0]->disconnect if $_[0]->{tx}
+}
+
 =head2 C<< ->read_register $register >>
 
   $ld->read_register(2)->then(sub {

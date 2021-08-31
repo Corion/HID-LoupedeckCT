@@ -1,8 +1,9 @@
 package Mojo::Transaction::WebSocket::Serial;
 #use Mojo::Base 'Mojo::Transaction::WebSocket';
 use Mojo::Base 'Mojo::EventEmitter';
-use Mojo::WebSocket 'WS_PING', 'WS_PONG', 'WS_TEXT', 'WS_BINARY';
+use Mojo::WebSocket 'WS_PING', 'WS_PONG', 'WS_TEXT', 'WS_BINARY', 'WS_CLOSE';
 use Future::Mojo;
+use Encode 'encode';
 
 use IO::Termios;
 use Fcntl;
@@ -158,7 +159,7 @@ sub send {
     $self->stream->write($payload);
 
     #return $self->emit('resume');
-    return
+    return $self
 }
 
 #sub resume {
@@ -168,5 +169,18 @@ sub send {
 #        $self->stream->write( $write );
 #    }
 #}
+
+
+sub finish {
+  my $self = shift;
+
+  my $close   = $self->{close} = [@_];
+  my $payload = $close->[0] ? pack('n', $close->[0]) : '';
+  $payload .= encode 'UTF-8', $close->[1] if defined $close->[1];
+  $close->[0] //= 1005;
+  $self->send([1, 0, 0, 0, WS_CLOSE, $payload])->{closing} = 1;
+
+  return $self;
+}
 
 1;

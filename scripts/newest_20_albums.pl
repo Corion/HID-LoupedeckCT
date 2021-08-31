@@ -507,4 +507,11 @@ my $refresh = Mojo::IOLoop->recurring( 1 => sub {
     rescan_processes()
 });
 
+# We want to stop the program gracefully even if we get CTRL+C
+$SIG{INT} = sub {
+    if( $ld ) {
+        $ld->disconnect;
+        Mojo::IOLoop->stop_gracefully;
+    }
+};
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
