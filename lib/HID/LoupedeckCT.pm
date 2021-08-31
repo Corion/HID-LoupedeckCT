@@ -4,6 +4,7 @@ use warnings;
 
 use 5.020;
 
+use File::Basename 'basename';
 use Mojo::UserAgent;
 use Mojo::WebSocket qw(WS_PING);
 use Mojo::Transaction::WebSocket::Serial;
@@ -107,7 +108,8 @@ sub _get_cbid( $self ) {
     my @ipv4_addresses = HID::LoupedecCT->list_loupedeck_devices;
 
 This method lists potential candidates for USB connected Loupedeck CT
-devices. It returns them as C<ws://> URIs.
+devices. It returns them as C<ws://> URIs for (USB) network connections
+and as raw path names for (USB) serial connections.
 
 =cut
 
@@ -121,11 +123,36 @@ sub list_loupedeck_devices_windows {
 }
 
 sub list_loupedeck_devices_other {
-    return map {
+	my @res = map {
         $_->address =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
     } IO::Interface::Simple->interfaces;
+
+    my %seen;
+
+	# This is highly Linux-specific ...
+    File::Find::find({ follow => 0, wanted => sub {
+		#say "Looking at $File::Find::name";
+		if( -d "$File::Find::name/tty" ) {
+			my $base = $File::Find::name;
+			#say "$base is a tty";
+			(my $dev) = glob "$base/tty/*";
+			$dev = basename $dev;
+			my $descr = "$base/uevent";
+			if( open my $fh, '<', $descr ) {
+				if( grep { warn $_; m!^PRODUCT=2ec2/3\b!i } <$fh> ) {
+					# Note the device ID so we don't report duplicates here
+					#say "Found USB-serial connection $File::Find::name ($dev)";
+					my $d = "/dev/$dev";
+					push @res, "/dev/$dev"
+						unless $seen{$d}++;
+				};
+			};
+		}}
+	}, '/sys/bus/usb/devices/');
+
+    return @res
 }
 
 sub list_loupedeck_devices($class) {
@@ -339,12 +366,12 @@ sub connect( $self, $uri = $self->uri ) {
     #});
 
     my $do_connect;
-    if( $uri ) {
+    if( $uri =~ m!^wss?://!) {
 
         $do_connect = $self->ua->websocket_p($uri);
     } else {
 
-        $do_connect = Mojo::Transaction::WebSocket::Serial->new(name => '/dev/ttyACM0')
+        $do_connect = Mojo::Transaction::WebSocket::Serial->new(name => $uri)
             ->open_p;
     };
     return $do_connect->then(sub {
