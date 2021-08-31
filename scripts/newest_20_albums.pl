@@ -269,8 +269,7 @@ sub set_backlight($status) {
             # except that we need to figure out where the network connection
             # went, so this is not yet working after hibernation/wakeup
             say "PrepareForSleep - restoring backlight level";
-            say "First, sleeping another 30 seconds";
-            sleep 30;
+            sleep 5;
 
             say "Found LoupeDeck devices";
             for my $uri (HID::LoupedeckCT->list_loupedeck_devices()) {
