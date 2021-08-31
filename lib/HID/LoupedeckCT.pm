@@ -680,7 +680,7 @@ sub load_image( $self, %options ) {
         my @colors = $img->getpixel(x => [0..$c], y => [$r]);
         $image_bits .= join "", map { _rgb($_->rgba) } @colors;
     }
-say "Writing";
+
     my $res = $self->set_screen_bits($screen, $image_bits, $x, $y, $img->getwidth,$img->getheight);
     if( $options{ update }) {
         $res = $res->then(sub {
