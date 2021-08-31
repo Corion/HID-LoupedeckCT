@@ -17,6 +17,7 @@ use Socket::MsgHdr;
 use lib '../Filesys-Scanner/lib';
 use Filesys::Scanner;
 use Audio::Directory;
+use charnames ':full';
 
 our $VERSION = '0.01';
 
@@ -373,6 +374,7 @@ sub reload_album_art( @albums ) {
             $load = $load->then( sub {
             say sprintf "Loading %s on %s", $img->name, $btn;
                 $ld->load_image_button( button => $btn, file => $img->name, center => 1 )
+                #$ld->load_image_button( button => $btn, string => "\N{DROMEDARY CAMEL}", center => 1 )
                 ->on_ready(sub {
                     say sprintf "Image %s done", $img->name;
                 })->catch(sub {
