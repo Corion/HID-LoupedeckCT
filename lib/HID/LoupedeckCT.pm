@@ -34,6 +34,8 @@ HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
 
 =head1 SYNOPSIS
 
+  use feature 'say';
+
   my $ld = HID::LoupedeckCT->new();
   say "Connecting to " . $ld->uri;
   $ld->connect()->get;
