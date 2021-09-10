@@ -43,6 +43,10 @@ my $scanner = Filesys::Scanner->new(
 my @albums;
 my %actions;
 
+
+# We want/need a watchdog (much like the websocket watchdog) to know if the
+# device has gone away (likely unplugged), and maybe also to detect if the
+# device comes back (replugged)
 sub init_ld($uri) {
     my $ld = HID::LoupedeckCT->new(
         maybe uri => $uri,
@@ -281,8 +285,8 @@ sub set_backlight($status) {
 
             # Maybe we should loop until we (re)find the LD?!
 
-            # XXX This might need to be repeated / we might need to
-            # reinitialize our websocket connection here
+            # XXX This might need to be repeated until we (re)find a device
+            #     or until we give up
             $ld = init_ld($uri);
             say "Reconnecting LD";
             connect_ld->then(sub {
@@ -292,6 +296,8 @@ sub set_backlight($status) {
                     warn Dumper \@_;
                 });
             })->then(sub {
+                # We should maybe have a list of things we want to reinitialize
+                # like also everything that depends on other state?!
                 reload_album_art( @albums );
 
             })->retain;
