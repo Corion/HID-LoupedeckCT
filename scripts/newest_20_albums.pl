@@ -24,6 +24,9 @@ our $VERSION = '0.01';
 use POSIX 'strftime';
 use Data::Dumper;
 
+# These should become plugins, and get a proper namespace, etc. ...
+use Activity::Geany::CurrentProject;
+
 GetOptions(
     'c=i' => \my $count,
     'uri=s' => \my $uri,
@@ -462,6 +465,41 @@ sub rescan_processes {
               },
           },
           button => 14,
+        },
+
+        # The same could hold for git, and maybe also even a shell prompt
+        # Maybe also I want a hotkey for "git gui here" ?!
+        { name => 'Geany test suite status',
+          # We want to look if Geany is running, extract the project directory
+          # from the current file, then check if there is a `prove` process
+          # (or maybe an inotify watcher?) running, and if not, run it, and
+          # extract the status as yellow -> red/green
+          # Split that up in two programs:
+          #     provewatcher -> run the test suite whenever a project file changes
+          #     prove-status -> parse .prove, and update the status accordingly
+          cmdline => qr/\bgeany\0/ms,
+          running_action => sub( $cfg, $pid ) {
+              # Do we want to do anything here?!
+              # Set the button according to the status found in .prove
+              #warn "Checking for Geany project";
+              my $project = Activity::Geany::CurrentProject->current_project;
+              if( $project ) {
+                  #warn "Current project: $project";
+                  # Check if a .prove exists, maybe?
+                  my $status = system('/home/corion/Projekte/HID-LoupedeckCT/scripts/prove-status.pl', '-f', "$project/.prove");
+                  #warn "Test status: $status";
+                  if( $status ) {
+                      $ld->set_button_color($cfg->{button},255,0,0)->retain;
+                  } else {
+                      $ld->set_button_color($cfg->{button},0,255,0)->retain;
+                  };
+              };
+          },
+          none_action    => sub( $cfg, $pid ) {
+              # Launch autoprove in the project directory
+              $ld->set_button_color($cfg->{button},0,0,0)->retain;
+          },
+          button => 18,
         },
     );
 
