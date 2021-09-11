@@ -375,10 +375,10 @@ sub reload_album_art( @albums ) {
         };
         if( my $img = $album->album_art ) {
             my $btn = $button;
-            say sprintf "Queueing %s", $img->name;
+            #say sprintf "Queueing %s", $img->name;
             #push @images,
             $load = $load->then( sub {
-            say sprintf "Loading %s on %s", $img->name, $btn;
+                #say sprintf "Loading %s on %s", $img->name, $btn;
                 $ld->load_image_button( button => $btn, file => $img->name, center => 1 )
                 #$ld->load_image_button( button => $btn, string => "\N{DROMEDARY CAMEL}", center => 1 )
                 ->on_ready(sub {
