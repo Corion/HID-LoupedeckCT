@@ -432,7 +432,7 @@ sub rescan_processes {
     my @check = (
         { name => 'Webcam',
           cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
-          running_action => sub( $cfg, $pid ) {
+          launch_action => sub( $cfg, $pid ) {
               $ld->set_button_color($cfg->{button},255,0,0)->retain;
               $actions{ $cfg->{button}} = sub {
                   $pid =~ /(\d+)$/ or die "No pid to kill?!";
@@ -449,7 +449,7 @@ sub rescan_processes {
         },
         { name => 'Audio controls',
           cmdline => qr/\bpavucontrol-qt\0/ms,
-          running_action => sub( $cfg, $pid ) {
+          launch_action => sub( $cfg, $pid ) {
               $ld->set_button_color($cfg->{button},0,127,0)->retain;
               $actions{ $cfg->{button}} = sub {
                   system('xdotool search --class "pavucontrol-qt" windowactivate');
@@ -490,16 +490,25 @@ sub rescan_processes {
     # Only trigger when the sense changes between running/not running
     for my $test (@check) {
         my $name = $test->{name};
-        if( ! exists $last_running{ $name }) {
+        if( ! exists $last_running{ $name } and not $running{ $name }->{pid}) {
             # This is the first time we check at all, so initialize to "not running"
-            warn "Initializing '$name' at start";
+            warn "Initializing '$name' at start (not running)";
             $test->{none_action}->( $test, $running{ $name }->{pid});
+        } elsif( ! exists $last_running{ $name } and $running{ $name }->{pid}) {
+            # This is the first time we check at all and the process is running already
+            warn "Initializing '$name' at start (already running)";
+            my $c = $test->{running_action} || $test->{launch_action};
+            $c->( $test, $running{ $name }->{pid});
         } elsif( $running{ $name } and ! $last_running{ $name }->{pid}) {
             warn "'$name' was newly launched";
-            $test->{running_action}->( $test, $running{$name}->{pid} );
+            $test->{launch_action}->( $test, $running{$name}->{pid} );
         } elsif( !$running{ $name } and $last_running{ $name }->{pid}) {
             warn "'$name' has gone away";
             $test->{none_action}->( $test, $running{ $name }->{pid});
+        } elsif( $running{ $name } and $last_running{ $name }->{pid} and my $c = $test->{running_action}) {
+            #warn "'$name' is running and we want notifications";
+            $c->( $test, $running{ $name }->{pid});
+
         } else {
             # Nothing to be done
         }
