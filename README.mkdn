@@ -42,7 +42,8 @@ The Websocket transaction used for talking.
     my @ipv4_addresses = HID::LoupedecCT->list_loupedeck_devices;
 
 This method lists potential candidates for USB connected Loupedeck CT
-devices. It returns them as `ws://` URIs.
+devices. It returns them as `ws://` URIs for (USB) network connections
+and as raw path names for (USB) serial connections.
 
 ## `->send_command $command, $payload`
 
@@ -72,6 +73,12 @@ Helper to return rectangle coordinates from a button number
     $ld->connect->then(sub {
         say "Connected to Loupedeck";
     });
+
+## `->disconnect`
+
+    $ld->disconnect->get;
+
+Disconnects gracefully from the Loupedeck.
 
 ## `->read_register $register`
 
@@ -165,6 +172,21 @@ buttons.
 ## `->load_image`
 
 ## `->load_image_button`
+
+    $ld->load_image_button(
+        button  => 1,
+        file    => 'logo.jpg',
+        refresh => 1,
+    )->get;
+
+    $ld->load_image_button(
+        button  => 1,
+        string  => "\N{DROMEDARY CAMEL}",
+        refresh => 1,
+        bgcolor => [30,30,60],
+    )->get;
+
+Loads one of the touchscreen buttons with an image file or string.
 
 # SEE ALSO
 
