@@ -21,6 +21,8 @@ use charnames ':full';
 
 our $VERSION = '0.01';
 
+use X11::GUITest qw(GetInputFocus GetWindowName GetParentWindow);
+
 use POSIX 'strftime';
 use Data::Dumper;
 
@@ -428,9 +430,24 @@ my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
     })->retain;
 });
 
+sub get_named_focus_window {
+    my $win = GetInputFocus();
+    my $name;
+    do {
+        #say $win;
+        $name = GetWindowName($win);
+        unless ($name) {
+            $win = GetParentWindow($win);
+        }
+    } until $name;
+    return $win
+}
 
+# Actually, this not only scans processes but also windows. This will need
+# splitting and moving to a different module :)
 sub rescan_processes {
     state %last_running;
+    state %last_focused;
 
     my @check = (
         { name => 'Webcam',
@@ -477,8 +494,9 @@ sub rescan_processes {
           # Split that up in two programs:
           #     provewatcher -> run the test suite whenever a project file changes
           #     prove-status -> parse .prove, and update the status accordingly
-          cmdline => qr/\bgeany\0/ms,
-          running_action => sub( $cfg, $pid ) {
+          #cmdline => qr/\bgeany\0/ms,
+          focus => qr/\b - Geany$/,
+          focused_action => sub( $cfg, $pid ) {
               # Do we want to do anything here?!
               # Set the button according to the status found in .prove
               #warn "Checking for Geany project";
@@ -495,7 +513,7 @@ sub rescan_processes {
                   };
               };
           },
-          none_action    => sub( $cfg, $pid ) {
+          blur_action => sub( $cfg, $pid ) {
               # Launch autoprove in the project directory
               $ld->set_button_color($cfg->{button},0,0,0)->retain;
           },
@@ -504,6 +522,23 @@ sub rescan_processes {
     );
 
     my %running;
+    my %focused;
+
+
+    # We should also store the time since this window has the focus to also
+    # enable stuff like "When looking for more than a minute at this window"
+    my $focus_window = get_named_focus_window();
+    my $window_title = GetWindowName($focus_window);
+    for my $test (@check) {
+        my $name = $test->{name};
+        my $title_re = $test->{focus};
+        if( $title_re and $window_title =~ /$title_re/ ) {
+            $focused{ $name } = { test => $test, window => $focus_window };
+        } else {
+            # So we know that this has been checked
+            $focused{ $name } ||= undef;
+        }
+    };
 
     # This is very specific to Linux
     for my $pid (glob '/proc/*') {
@@ -528,31 +563,57 @@ sub rescan_processes {
     # Only trigger when the sense changes between running/not running
     for my $test (@check) {
         my $name = $test->{name};
+
+        # A test might get triggered for "running" and "focused" currently...
+
+        my $focus_action;
+        if( ! exists $last_focused{ $name } and not $focused{ $name }->{window}) {
+            # First time we see this test, and it's not focused, nothing to do
+        } elsif( ! exists $last_focused{ $name } and $focused{ $name }->{window}) {
+            # We switched to this window
+            $focus_action = $test->{focus_action};
+
+        } elsif( exists $last_focused{ $name } and ! $focused{ $name }->{window}) {
+            # We switched from this window
+            $focus_action = $test->{blur_action};
+
+        } elsif( exists $last_focused{ $name } and $focused{ $name }->{window}) {
+            # We stayed with this window
+            $focus_action = $test->{focused_action};
+        }
+        if( $focus_action ) {
+            $focus_action->( $test, $focused{ $name }->{window})
+        };
+
+        my $run_action;
         if( ! exists $last_running{ $name } and not $running{ $name }->{pid}) {
             # This is the first time we check at all, so initialize to "not running"
+            $run_action = $test->{none_action};
             warn "Initializing '$name' at start (not running)";
-            $test->{none_action}->( $test, $running{ $name }->{pid});
         } elsif( ! exists $last_running{ $name } and $running{ $name }->{pid}) {
             # This is the first time we check at all and the process is running already
             warn "Initializing '$name' at start (already running)";
-            my $c = $test->{running_action} || $test->{launch_action};
-            $c->( $test, $running{ $name }->{pid});
+            $run_action = $test->{running_action} || $test->{launch_action};
         } elsif( $running{ $name } and ! $last_running{ $name }->{pid}) {
             warn "'$name' was newly launched";
-            $test->{launch_action}->( $test, $running{$name}->{pid} );
+            $run_action = $test->{launch_action};
         } elsif( !$running{ $name } and $last_running{ $name }->{pid}) {
             warn "'$name' has gone away";
-            $test->{none_action}->( $test, $running{ $name }->{pid});
+            $run_action = $test->{stop_action} || $test->{none_action};
         } elsif( $running{ $name } and $last_running{ $name }->{pid} and my $c = $test->{running_action}) {
             #warn "'$name' is running and we want notifications";
-            $c->( $test, $running{ $name }->{pid});
+            $run_action = $test->{running_action};
 
         } else {
             # Nothing to be done
         }
+        if( $run_action ) {
+            $run_action->( $test, $running{ $name }->{pid})
+        };
     }
 
     %last_running = %running;
+    %last_focused = %focused;
 }
 
 # Rescan if a process is running
