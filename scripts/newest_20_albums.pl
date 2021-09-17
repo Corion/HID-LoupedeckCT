@@ -448,13 +448,15 @@ my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
 sub get_named_focus_window {
     my $win = GetInputFocus();
     my $name;
-    do {
-        #say $win;
-        $name = GetWindowName($win);
-        unless ($name) {
-            $win = GetParentWindow($win);
-        }
-    } until $name;
+    # We return undef if the window has gone away
+    eval {
+        do {
+            $name = GetWindowName($win);
+            unless ($name) {
+                $win = GetParentWindow($win);
+            }
+        } until $name;
+    };
     return $win
 }
 
