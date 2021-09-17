@@ -107,16 +107,31 @@ say "Connecting to " . $ld->uri;
 my (@mp3_actions) = mime_applications('audio/mpeg');
 my (@pl_actions) = mime_applications('audio/x-mpegurl');
 
+#for (@mp3_actions) {
+#    say join " - ", $_->Name, $_->Text;
+#}
+
 sub play_album( $album ) {
     if( my $pl = $album->playlist ) {
         say $pl_actions[1]->Name;
         $pl_actions[1]->run($pl->name);
     } else {
-        my @files = sort map { $_->name } $album->music_files;
+        # The other players behave even weirder than SMPlayer (!)
+        # We assume that the second mention of the default player is the "enqueue action" ...
+        my ($playfile, $queue_files) = grep { $_->Name =~ /\bSMPlayer\b/ } @mp3_actions;
+
+        my @files = map { $_->name } sort {
+                      $a->{album} cmp $b->{album} # so we sort CD1 before CD2 ...
+                   || $a->{track} <=> $b->{track}
+                   || $a->{url} cmp $b->{url}
+                 } $album->music_files;
         my $first = shift @files;
-        say $mp3_actions[2]->Name;
-        $mp3_actions[1]->run($first);
-        $mp3_actions[2]->run(@files);
+        $playfile->run($first);
+        #say $queue_files->Name;
+        # We need to delay the appending of files, otherwise SMPlayer gets confused ...
+        Mojo::IOLoop->timer(1 => sub {
+            $queue_files->run(@files);
+        });
     };
 }
 
