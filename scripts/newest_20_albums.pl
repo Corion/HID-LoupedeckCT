@@ -445,18 +445,18 @@ my $refresh = Mojo::IOLoop->recurring( 60*30 => sub {
     })->retain;
 });
 
+# This needs a patched version of X11::GUITest that doesn't crash the process
+# on windows having gone away while looping through window handles ...
 sub get_named_focus_window {
     my $win = GetInputFocus();
     my $name;
     # We return undef if the window has gone away
-    eval {
-        do {
-            $name = GetWindowName($win);
-            unless ($name) {
-                $win = GetParentWindow($win);
-            }
-        } until $name;
-    };
+    do {
+        $name = GetWindowName($win);
+        unless ($name) {
+            $win = GetParentWindow($win);
+        }
+    } until $name or ($win == 0);
     return $win
 }
 
