@@ -28,6 +28,7 @@ use Data::Dumper;
 
 # These should become plugins, and get a proper namespace, etc. ...
 use Activity::Geany::CurrentProject;
+use Assistant::Timers;
 
 GetOptions(
     'c=i' => \my $count,
@@ -80,9 +81,17 @@ sub init_ld($uri) {
                 play_album($albums[ $info->{button} ]);
             };
 
+        } else {
+            say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
         };
+    });
 
-        say sprintf "Touch event: id: %d, released: %d, finger: %d, (%d,%d)", $info->{button}, $info->{released}, $info->{finger}, $info->{x}, $info->{y};
+    $ld->on('wheel_touch' => sub($ld,$info) {
+        return unless $info->{released};
+        # Maybe allow more areas for the wheel?!
+        if( my $cb = $actions{ 'wheel_touch' }) {
+            $cb->( $info );
+        };
     });
 
     $ld->on('key' => sub( $ld, $info ) {
@@ -460,12 +469,6 @@ sub get_named_focus_window {
     return $win
 }
 
-# Actually, this not only scans processes but also windows. This will need
-# splitting and moving to a different module :)
-sub rescan_processes {
-    state %last_running;
-    state %last_focused;
-
     my @check = (
         { name => 'Webcam',
           cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
@@ -536,11 +539,58 @@ sub rescan_processes {
           },
           button => 18,
         },
+
+        # The same could hold for git, and maybe also even a shell prompt
+        # Maybe also I want a hotkey for "git gui here" ?!
+        { name => 'Start/stop 6 minute timer',
+          button => undef, # need to find out how we want to handle the wheel
+          on_tick => sub( $cfg, $time ) {
+              state $timer = Assistant::Timers->new( duration => 360 );
+
+              if( $timer->expired($time) ) {
+                  $ld->vibrate(1);
+              };
+              $actions{ 'wheel_touch' } //= sub( $info ) {
+                  my $rel = $info->{released};
+                  if( $rel and $timer->expired() ) {
+                      #say "Stopping alarm";
+                      $timer->stop;
+                  } elsif( $rel and $timer->started() ) {
+                      if( $timer->paused ) {
+                          $timer->unpause
+                      } else {
+                        say "Pausing timer";
+                        $timer->pause;
+                      };
+                  } elsif( $rel and $timer->stopped($time) ) {
+                      #say "Starting timer";
+                      $timer->start
+                  };
+              };
+              # (re)draw the timer on the wheel
+              # ...
+              if( $timer->started() ) {
+                  my $rem = $timer->remaining($time);
+                  say sprintf '%02d:%02d:%02d', int( $rem / 3600 ), int($rem/60) % 60, $rem%60;
+              };
+          },
+          # Maybe we want on_show/on_hide to configure the buttons and allow
+          # changing of the config?!
+
+        },
     );
+
+# Actually, this not only scans processes but also windows. This will need
+# splitting and moving to a different module :)
+# It now also handles setting up a timer button, which has nothing to do
+# with all of these ...
+# This is rather the main loop...
+sub rescan_processes {
+    state %last_running;
+    state %last_focused;
 
     my %running;
     my %focused;
-
 
     # We should also store the time since this window has the focus to also
     # enable stuff like "When looking for more than a minute at this window"
@@ -627,6 +677,10 @@ sub rescan_processes {
         if( $run_action ) {
             $run_action->( $test, $running{ $name }->{pid})
         };
+
+        if( my $c = $test->{on_tick}) {
+            $c->( $test, time());
+        };
     }
 
     %last_running = %running;
@@ -646,3 +700,12 @@ $SIG{INT} = sub {
     }
 };
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+
+# Start/stop/resume timer, with display in center
+# Multiple timers on buttons?!
+# Vibration on expiry
+# Prima for display of info?!
+# Ascii pop-up (Prima)
+# Calendar pop-up (from WebDAV)
+# HTML pop-up (via Chrome?!)
