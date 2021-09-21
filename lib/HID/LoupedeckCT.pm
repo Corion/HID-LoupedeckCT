@@ -734,6 +734,54 @@ sub load_image( $self, %options ) {
     return $res
 }
 
+sub _text_image( $self, $w,$h, $str, %options ) {
+    my $bg   = delete $options{ bgcolor } || [0,80,0];
+    my $fg   = delete $options{ color } || [255,255,255];
+    my $font = delete $options{ font } || '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
+
+    # Upgrade to Imager::Color objects
+    for ($bg,$fg) {
+        if( ref $_ eq 'ARRAY' ) {
+            $_ = Imager::Color->new( @$_ );
+        }
+    };
+
+    # We should size the string first and then scale things down to the target
+    # ... or draw the string as large as it is, and leave the rest to the
+    # lower levels of image aligning
+    $font = Imager::Font->new( file => $font, type => 'ft2', size => $h, color => $fg, );
+
+    my $btn1 = Imager->new(
+        xsize => $w,
+        ysize => $h,
+    );
+    # Size the string
+    my ($l,$t,$r,$b) = $font->align( string => $str,
+                  x => $w / 2,
+                  y => $h / 2,
+                  halign => 'center',
+                  valign => 'center',
+                  image => $btn1,
+                );
+    my ($rw, $rh) = ($r-$l, $b-$t);
+    my $sz = $rw > $rh ? $rw : $rh;
+    my $btn = Imager->new(
+        xsize => $sz,
+        ysize => $sz,
+    );
+    # Paint the background
+    $btn->box( filled => 1, color => $bg );
+    # Draw the font
+    $font->align( string => $str,
+                  x => $sz / 2,
+                  y => $sz / 2,
+                  halign => 'center',
+                  valign => 'center',
+                  image => $btn,
+                );
+    return $btn;
+}
+
 =head2 C<< ->load_image_button >>
 
   $ld->load_image_button(
@@ -760,52 +808,8 @@ sub load_image_button( $self, %options ) {
     my ($screen,$x,$y,$w,$h) = @r;
 
     if( my $str  = delete $options{ string }) {
-        my $bg   = delete $options{ bgcolor } || [0,80,0];
-        my $fg   = delete $options{ color } || [255,255,255];
-        my $font = delete $options{ font } || '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
-
-        # Upgrade to Imager::Color objects
-        for ($bg,$fg) {
-            if( ref $_ eq 'ARRAY' ) {
-                $_ = Imager::Color->new( @$_ );
-            }
-        };
-
-        # We should size the string first and then scale things down to the target
-        # ... or draw the string as large as it is, and leave the rest to the
-        # lower levels of image aligning
-        $font = Imager::Font->new( file => $font, type => 'ft2', size => $h, color => $fg, );
-
-        my $btn1 = Imager->new(
-            xsize => $w,
-            ysize => $h,
-        );
-        # Size the string
-        my ($l,$t,$r,$b) = $font->align( string => $str,
-                      x => $w / 2,
-                      y => $h / 2,
-                      halign => 'center',
-                      valign => 'center',
-                      image => $btn1,
-                    );
-        my ($rw, $rh) = ($r-$l, $b-$t);
-        my $sz = $rw > $rh ? $rw : $rh;
-        my $btn = Imager->new(
-            xsize => $sz,
-            ysize => $sz,
-        );
-        # Paint the background
-        $btn->box( filled => 1, color => $bg );
-        # Draw the font
-        $font->align( string => $str,
-                      x => $sz / 2,
-                      y => $sz / 2,
-                      halign => 'center',
-                      valign => 'center',
-                      image => $btn,
-                    );
-        $options{ image } = $btn;
-    }
+		$options{ image } = $self->_text_image( $w, $h, $str, %options );
+	}
 
     return $self->load_image(
               screen => $screen,
