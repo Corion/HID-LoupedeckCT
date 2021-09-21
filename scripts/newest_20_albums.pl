@@ -571,8 +571,16 @@ sub get_named_focus_window {
               # ...
               if( $timer->started() ) {
                   my $rem = $timer->remaining($time);
-                  say sprintf '%02d:%02d:%02d', int( $rem / 3600 ), int($rem/60) % 60, $rem%60;
-              };
+                  my $str = sprintf '%02d:%02d:%02d', int( $rem / 3600 ), int($rem/60) % 60, $rem%60;
+                  my $img = $ld->_text_image(240,240,$str);
+                  $ld->load_image( screen => 'wheel', image => $img, update => 1 )->retain;
+              } elsif( $timer->paused() ) {
+                  # blink it every second
+              } elsif( $timer->expired() ) {
+                  # what do we display here?!
+              } else {
+                  # clear the screen
+              }
           },
           # Maybe we want on_show/on_hide to configure the buttons and allow
           # changing of the config?!
