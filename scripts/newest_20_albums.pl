@@ -428,6 +428,7 @@ sub reload_album_art( @albums ) {
     });
 }
 
+my $rescan;
 my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session_ready )->then(sub($ld_f,$newest_20_f, $system_dbus, $session_dbus) {
     #say "Initializing screen";
     # Button 0 stays empty
@@ -438,6 +439,12 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
     #my @image;
 
     #Future->done
+
+    # Rescan if a process is running
+    $rescan = Mojo::IOLoop->recurring( 1 => sub {
+        rescan_processes()
+    });
+
     return reload_album_art( @albums );
 })->catch(sub {
     use Data::Dumper;
@@ -695,11 +702,6 @@ sub rescan_processes {
     %last_focused = %focused;
 }
 
-# Rescan if a process is running
-my $refresh = Mojo::IOLoop->recurring( 1 => sub {
-    rescan_processes()
-});
-
 # We want to stop the program gracefully even if we get CTRL+C
 $SIG{INT} = sub {
     if( $ld ) {
@@ -710,10 +712,8 @@ $SIG{INT} = sub {
 Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
 
 
-# Start/stop/resume timer, with display in center
 # Multiple timers on buttons?!
-# Vibration on expiry
-# Prima for display of info?!
+# Prima for display of info on main screen(s)?!
 # Ascii pop-up (Prima)
 # Calendar pop-up (from WebDAV)
 # HTML pop-up (via Chrome?!)
