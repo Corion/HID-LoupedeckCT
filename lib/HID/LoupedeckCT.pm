@@ -700,8 +700,8 @@ sub load_image( $self, %options ) {
 
     my $screen = delete $options{ screen } // 'middle';
 
-    my $x = delete $options{ left };
-    my $y = delete $options{ top };
+    my $x = delete $options{ left } // 0;
+    my $y = delete $options{ top }  // 0;
     my $w = delete $options{ width } // $HID::LoupedeckCT::screens{$screen}->{width};
     my $h = delete $options{ height } // $HID::LoupedeckCT::screens{$screen}->{height};
 
