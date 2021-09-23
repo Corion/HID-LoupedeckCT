@@ -143,7 +143,7 @@ sub list_loupedeck_devices_other {
 			$dev = basename $dev;
 			my $descr = "$base/uevent";
 			if( open my $fh, '<', $descr ) {
-				if( grep { warn $_; m!^PRODUCT=2ec2/3\b!i } <$fh> ) {
+				if( grep { m!^PRODUCT=2ec2/3\b!i } <$fh> ) {
 					# Note the device ID so we don't report duplicates here
 					#say "Found USB-serial connection $File::Find::name ($dev)";
 					my $d = "/dev/$dev";
