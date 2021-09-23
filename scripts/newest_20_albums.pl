@@ -66,7 +66,6 @@ sub init_ld($uri) {
         }; warn $@ if $@;
     });
 
-
     $ld->on('touch' => sub($ld,$info) {
         # Middle button, not side sliders
         if( defined $info->{button} and 0 < $info->{button} and $info->{button} < 13 ) {
@@ -75,7 +74,7 @@ sub init_ld($uri) {
             my $rel = !$info->{released};
 
             if( $info->{released} ) {
-                say $info->{button};
+                #say $info->{button};
                 say $albums[ $info->{button} ]->name;
 
                 play_album($albums[ $info->{button} ]);
@@ -408,11 +407,12 @@ sub reload_album_art( @albums ) {
             #push @images,
             $load = $load->then( sub {
                 #say sprintf "Loading %s on %s", $img->name, $btn;
-                $ld->load_image_button( button => $btn, file => $img->name, center => 1 )
+                $ld->load_image_button( button => $btn, file => $img->name, center => 1, update => 0 )
                 #$ld->load_image_button( button => $btn, string => "\N{DROMEDARY CAMEL}", center => 1 )
-                ->on_ready(sub {
-                    say sprintf "Image %s done", $img->name;
-                })->catch(sub {
+                #->on_ready(sub {
+                #    say sprintf "Image %s done", $img->name;
+                #})
+                >catch(sub {
                     use Data::Dumper;
                     warn Dumper \@_;
                 });
