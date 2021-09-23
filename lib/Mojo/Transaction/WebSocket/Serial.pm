@@ -56,9 +56,15 @@ sub open_p {
                 $self->{_switched_to_websocket} = 1;
                 #say "Switched to WS";
                 #say "Connected to LD via WS-over-serial";
+
+                # Launch our keep-alive ping
+                $self->{_ping} = Mojo::IOLoop->recurring( 5 => sub {
+                    $self->send([1,0,0,0,WS_PING,''] );
+                });
                 $res->done($self);
             } else {
                 #say "Waiting for complete response";
+
                 return;
             };
         };
@@ -95,11 +101,6 @@ HTTP
 
     $ws_startup =~ s!\s*\x0a!\x0d\x0a!sg;
     $h->write($ws_startup."\x0d\x0a");
-
-    # Keep the connection alive
-    $self->{_ping} = Mojo::IOLoop->recurring( 5 => sub {
-        $self->send([1,0,0,0,WS_PING,''] );
-    });
 
     return $res;
 }
