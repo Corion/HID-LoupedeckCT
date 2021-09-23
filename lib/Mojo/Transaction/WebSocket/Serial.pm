@@ -24,6 +24,9 @@ sub compressed { 0 }; # no compression
 
 sub open_p {
     my( $self ) = @_;
+
+    my $res = Future::Mojo->new(Mojo::IOLoop->new);
+
     my $fn = $self->name;
     sysopen my $fh, $fn, O_RDWR
         or die "sysopen '$fn': $!";
@@ -33,8 +36,6 @@ sub open_p {
     $handle->cfmakeraw;
     my $h = Mojo::IOLoop::Stream->new($handle);
     $self->stream($h);
-
-    my $res = Future::Mojo->new(Mojo::IOLoop->new);
 
     my $read_buffer;
     $self->stream->on(read => sub {
