@@ -39,7 +39,7 @@ sub open_p {
     $self->stream($h);
 
     my $read_buffer;
-    $self->stream->on(read => sub {
+    $h->on(read => sub {
         my ($h, $raw) = @_;
 
         $read_buffer .= $raw;
