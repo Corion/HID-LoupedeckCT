@@ -361,6 +361,17 @@ sub on_ld_message( $self, $raw ) {
 
 =cut
 
+sub _new_serial_tx_p( $self, $uri ) {
+    return Mojo::Transaction::WebSocket::Serial->new(
+        name => $uri,
+        on_close => sub {
+            say "Reconnecting";
+            $self->connect($self->uri)->retain();
+            ()
+        },
+    )->open_p
+}
+
 sub connect( $self, $uri = $self->uri ) {
 
     #$res->on_ready(sub {
@@ -373,11 +384,12 @@ sub connect( $self, $uri = $self->uri ) {
         $do_connect = $self->ua->websocket_p($uri);
     } else {
 
-        $do_connect = Mojo::Transaction::WebSocket::Serial->new(name => $uri)
-            ->open_p;
+        $do_connect = $self->_new_serial_tx_p( $uri );
     };
-    return $do_connect->then(sub {
+    my $res;
+    $res = $do_connect->then(sub {
         my ($tx) = @_;
+
         # say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
         $self->{tx} = $tx;
 
@@ -398,7 +410,23 @@ sub connect( $self, $uri = $self->uri ) {
             $self->on_ld_message( $msg );
         });
 
+        if( $res != $self->{_first_connected}) {
+            say "Resolving original Future";
+            $self->{_first_connected}->done($tx);
+        };
+
+		Future->done( )
+
+    })->catch(sub {
+        say "Error";
+        use Data::Dumper;
+        say Dumper \@_;
+    })->on_ready(sub {
+        say "$_[0] is ready";
     });
+
+    $self->{_first_connected} //= $res;
+    return $res
 };
 
 =head2 C<< ->disconnect >>

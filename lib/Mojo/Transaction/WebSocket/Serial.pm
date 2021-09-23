@@ -17,6 +17,7 @@ use Data::Dumper;
 
 has 'name';
 has 'stream';
+has 'on_close';
 has max_websocket_size => sub { $ENV{MOJO_MAX_WEBSOCKET_SIZE} || 262144 };
 
 sub masked { 1 }; # we are the "client"
@@ -78,7 +79,19 @@ sub open_p {
                 $self->on_ws_frame($frame);
             }
         };
+    });
 
+    $h->on( close => sub {
+        #say "LD $fn has gone away, reconnecting...";
+        my $c = $self->on_close;
+        if( $c ) {
+            eval { $c->($self) }
+        };
+    });
+
+    $h->on( error => sub {
+        my ( $h, $error ) = @_;
+        say "LD $fn has error '$error'";
     });
 
     #$h->on(write => sub {
@@ -86,6 +99,7 @@ sub open_p {
     #});
 
     $h->start;
+    say "Writing request to $h";
 
     # This should be something more random, and we should also check
     # the challenge...
