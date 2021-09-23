@@ -412,7 +412,7 @@ sub reload_album_art( @albums ) {
                 #->on_ready(sub {
                 #    say sprintf "Image %s done", $img->name;
                 #})
-                >catch(sub {
+                ->catch(sub {
                     use Data::Dumper;
                     warn Dumper \@_;
                 });
