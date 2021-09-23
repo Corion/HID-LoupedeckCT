@@ -366,7 +366,9 @@ sub _new_serial_tx_p( $self, $uri ) {
         name => $uri,
         on_close => sub {
             say "Reconnecting";
-            $self->connect($self->uri)->retain();
+            $self->connect($self->uri)->then(sub {
+				$self->{needs_refresh} = 1;
+			})->retain();
             ()
         },
     )->open_p

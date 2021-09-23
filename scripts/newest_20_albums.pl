@@ -703,6 +703,11 @@ sub rescan_processes {
 
     %last_running = %running;
     %last_focused = %focused;
+
+    if( $ld->{needs_refresh}) {
+        reload_album_art( @albums )->retain;
+        undef $ld->{needs_refresh};
+    };
 }
 
 # We want to stop the program gracefully even if we get CTRL+C
