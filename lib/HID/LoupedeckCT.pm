@@ -860,7 +860,6 @@ sub set_screen_bits( $self, $screen, $bits, $left=0, $top=0, $width=undef,$heigh
             $payload .= "\0";
         };
         $payload .= $bits;
-        say length($payload);
         return $self->send_command( 0xff10, $payload );
         #$self->redraw_screen($screen);
 }
