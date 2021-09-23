@@ -125,7 +125,7 @@ sub list_loupedeck_devices_windows {
 }
 
 sub list_loupedeck_devices_other {
-	my @res = map {
+    my @res = map {
         $_->address =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
@@ -133,26 +133,26 @@ sub list_loupedeck_devices_other {
 
     my %seen;
 
-	# This is highly Linux-specific ...
+    # This is highly Linux-specific ...
     File::Find::find({ follow => 0, wanted => sub {
-		#say "Looking at $File::Find::name";
-		if( -d "$File::Find::name/tty" ) {
-			my $base = $File::Find::name;
-			#say "$base is a tty";
-			(my $dev) = glob "$base/tty/*";
-			$dev = basename $dev;
-			my $descr = "$base/uevent";
-			if( open my $fh, '<', $descr ) {
-				if( grep { m!^PRODUCT=2ec2/3\b!i } <$fh> ) {
-					# Note the device ID so we don't report duplicates here
-					#say "Found USB-serial connection $File::Find::name ($dev)";
-					my $d = "/dev/$dev";
-					push @res, "/dev/$dev"
-						unless $seen{$d}++;
-				};
-			};
-		}}
-	}, '/sys/bus/usb/devices/');
+        #say "Looking at $File::Find::name";
+        if( -d "$File::Find::name/tty" ) {
+            my $base = $File::Find::name;
+            #say "$base is a tty";
+            (my $dev) = glob "$base/tty/*";
+            $dev = basename $dev;
+            my $descr = "$base/uevent";
+            if( open my $fh, '<', $descr ) {
+                if( grep { m!^PRODUCT=2ec2/3\b!i } <$fh> ) {
+                    # Note the device ID so we don't report duplicates here
+                    #say "Found USB-serial connection $File::Find::name ($dev)";
+                    my $d = "/dev/$dev";
+                    push @res, "/dev/$dev"
+                        unless $seen{$d}++;
+                };
+            };
+        }}
+    }, '/sys/bus/usb/devices/');
 
     return @res
 }
@@ -438,12 +438,12 @@ Disconnects gracefully from the Loupedeck.
 =cut
 
 sub disconnect( $self ) {
-	say "Disconnecting websocket";
-	return $self->tx->finish
+    say "Disconnecting websocket";
+    return $self->tx->finish
 }
 
 sub DESTROY {
-	$_[0]->disconnect if $_[0]->{tx}
+    $_[0]->disconnect if $_[0]->{tx}
 }
 
 =head2 C<< ->read_register $register >>
@@ -836,8 +836,8 @@ sub load_image_button( $self, %options ) {
     my ($screen,$x,$y,$w,$h) = @r;
 
     if( my $str  = delete $options{ string }) {
-		$options{ image } = $self->_text_image( $w, $h, $str, %options );
-	}
+        $options{ image } = $self->_text_image( $w, $h, $str, %options );
+    }
 
     return $self->load_image(
               screen => $screen,
