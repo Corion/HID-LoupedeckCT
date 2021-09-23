@@ -476,7 +476,7 @@ sub get_named_focus_window {
     return $win
 }
 
-    my @check = (
+my @check = (
         { name => 'Webcam',
           cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
           launch_action => sub( $cfg, $pid ) {
@@ -579,7 +579,7 @@ sub get_named_focus_window {
               if( $timer->started() ) {
                   my $rem = $timer->remaining($time);
                   my $str = sprintf '%02d:%02d:%02d', int( $rem / 3600 ), int($rem/60) % 60, $rem%60;
-                  my $img = $ld->_text_image(240,240,$str);
+                  my $img = $ld->_text_image(240,240,$str, bgcolor => [0,0,0]);
                   $ld->load_image( screen => 'wheel', image => $img, update => 1 )->retain;
               } elsif( $timer->paused() ) {
                   # blink it every second
@@ -587,13 +587,16 @@ sub get_named_focus_window {
                   # what do we display here?!
               } else {
                   # clear the screen
+                  $ld->set_screen_color( 'wheel', 0,0,0)->then(sub {
+                      $ld->redraw_screen('wheel');
+                  })->retain;
               }
           },
           # Maybe we want on_show/on_hide to configure the buttons and allow
           # changing of the config?!
 
         },
-    );
+);
 
 # Actually, this not only scans processes but also windows. This will need
 # splitting and moving to a different module :)
