@@ -10,6 +10,7 @@ use Mojo::WebSocket qw(WS_PING);
 use Mojo::Transaction::WebSocket::Serial;
 use Mojo::Base 'Mojo::EventEmitter';
 use Carp 'croak';
+use Scalar::Util 'weaken';
 
 use Moo 2;
 use PerlX::Maybe;
@@ -81,6 +82,10 @@ The Websocket transaction used for talking.
 
 has 'tx' => (
     is => 'ro',
+);
+
+has 'connected' => (
+    is => 'rw',
 );
 
 has '_callbacks' => (
@@ -365,11 +370,12 @@ sub _new_serial_tx_p( $self, $uri ) {
     return Mojo::Transaction::WebSocket::Serial->new(
         name => $uri,
         on_close => sub {
-            say "Reconnecting";
-            $self->connect($self->uri)->then(sub {
-				$self->{needs_refresh} = 1;
-			})->retain();
-            ()
+			$self->connected(0);
+            #say "Reconnecting";
+            #$self->connect($self->uri)->then(sub {
+			#	$self->{needs_refresh} = 1;
+			#})->retain();
+            #()
         },
     )->open_p
 }
@@ -389,11 +395,13 @@ sub connect( $self, $uri = $self->uri ) {
         $do_connect = $self->_new_serial_tx_p( $uri );
     };
     my $res;
+    weaken(my $s = $self);
     $res = $do_connect->then(sub {
         my ($tx) = @_;
+        $self->connected(1);
 
         # say 'WebSocket handshake failed!' and return unless $tx->is_websocket;
-        $self->{tx} = $tx;
+        $s->{tx} = $tx;
 
         #$tx->on(close => sub {
         #   say "--- closed";
@@ -409,13 +417,13 @@ sub connect( $self, $uri = $self->uri ) {
         #});
 
         $tx->on('binary' => sub( $tx, $msg ) {
-            $self->on_ld_message( $msg );
+            $s->on_ld_message( $msg );
         });
 
-        if( $res != $self->{_first_connected}) {
-            say "Resolving original Future";
-            $self->{_first_connected}->done($tx);
-        };
+        #if( $res != $s->{_first_connected}) {
+        #    say "Resolving original Future $self->{_first_connected}";
+        #    $s->{_first_connected}->done($tx);
+        #};
 
 		Future->done( )
 
@@ -427,7 +435,10 @@ sub connect( $self, $uri = $self->uri ) {
         say "$_[0] is ready";
     });
 
-    $self->{_first_connected} //= $res;
+    #if( ! $self->{_first_connected}) {
+	#	$self->{_first_connected} //= $res;
+	#	say "Setting up primary future $res";
+	#};
     return $res
 };
 
@@ -440,8 +451,12 @@ Disconnects gracefully from the Loupedeck.
 =cut
 
 sub disconnect( $self ) {
-    say "Disconnecting websocket";
-    return $self->tx->finish
+	if( $self->tx ) {
+		say "Disconnecting websocket";
+		return $self->tx->finish
+	} else {
+		return
+	}
 }
 
 sub DESTROY {

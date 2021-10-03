@@ -2,6 +2,7 @@
 use 5.020;
 use feature 'signatures';
 no warnings 'experimental::signatures';
+use Future::Utils 'repeat';
 use Getopt::Long;
 use HID::LoupedeckCT;
 use File::MimeInfo::Applications; # well, for Windows, we'll need something else
@@ -168,7 +169,11 @@ sub rescan_files( @directories ) {
 my $newest_20 = rescan_files( @ARGV );
 
 sub connect_ld() {
-    return $ld->connect()->then(sub {
+    my $connected = repeat {
+        $ld->connect
+        ->followed_by( sub {! $ld->connected })
+    } while => sub { shift->result };
+    return $connected->then(sub {
         return $ld->restore_backlight_level()->then(sub {
             return Future->done( $ld );
         });
