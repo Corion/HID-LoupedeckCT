@@ -718,6 +718,7 @@ sub rescan_processes {
 # We want to stop the program gracefully even if we get CTRL+C
 $SIG{INT} = sub {
     if( $ld ) {
+        # We should maybe merely set a flag here and do the rest outside?!
         $ld->disconnect;
         Mojo::IOLoop->stop_gracefully;
     }
