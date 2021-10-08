@@ -197,7 +197,16 @@ sub send_command( $self, $command, $payload ) {
     };
     $self->hexdump('> ',$vis);
 
-    $self->tx->send({ binary => $p });
+    eval {
+
+		$self->tx->send({ binary => $p });
+	};
+	if( $@) {
+		warn $@;
+		# Let's assume that we can/need simply reconnect
+		$self->connected(0);
+		#exit;
+	};
     return $res;
 }
 
