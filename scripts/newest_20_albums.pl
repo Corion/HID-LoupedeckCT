@@ -103,7 +103,7 @@ sub init_ld($uri) {
 
     return $ld
 }
-my $ld = init_ld($uri);
+our $ld = init_ld($uri);
 
 my $dbus_system = Protocol::DBus::Client::Mojo::system();
 my $dbus_session = Protocol::DBus::Client::Mojo::login_session();
@@ -169,16 +169,49 @@ sub rescan_files( @directories ) {
 my $newest_20 = rescan_files( @ARGV );
 
 sub connect_ld() {
+    my $t;
     my $connected = repeat {
-        $ld->connect
-        ->followed_by( sub {! $ld->connected })
+        my $res;
+        (my $device) = HID::LoupedeckCT->list_loupedeck_devices();
+        if( ! $device ) {
+            # retry
+            $res = Future->new;
+            say "No device found, waiting 1 second";
+            $t = Mojo::IOLoop->timer( 1 => sub {
+                $res->done(undef);
+            });
+
+        } elsif( ! $ld ) {
+            say "Waiting for LD object to be (re)constructed";
+            $res = Future->new;
+            say "No device found, waiting 1 second";
+            $t = Mojo::IOLoop->timer( 1 => sub {
+                $res->done(undef);
+            });
+
+        } else {
+            $res = $ld->connect( $device )
+                   ->followed_by( sub {
+                       my $not_connected = ! $ld->connected;
+                       if( $not_connected ) {
+                           say "Have device but couldn't connect, retrying";
+                       }
+                       return $not_connected;
+                    });
+        };
+        $res
     } while => sub { shift->result };
     return $connected->then(sub {
         return $ld->restore_backlight_level()->then(sub {
             return Future->done( $ld );
         });
     })->on_ready(sub {
-        say "*** LD connected";
+        if( $ld ) {
+            say sprintf "*** LD connected, status is '%s'", $ld->status;
+        } else {
+            say "*** No LD available?!";
+            say Dumper [$_[0]->get];
+        };
     });
 }
 my $connected = connect_ld();
@@ -280,6 +313,21 @@ my $dbus_ready = $dbus_system->initialize_p()
 
 # DBus remote control is more or less per-player :-|
 
+sub reconnect_ld {
+    say "Reconnecting LD";
+    connect_ld->then(sub {
+        $ld->restore_backlight_level
+        ->catch(sub {
+            warn "Error when restoring";
+            warn Dumper \@_;
+        });
+    })->then(sub {
+        # We should maybe have a list of things we want to reinitialize
+        # like also everything that depends on other state?!
+        reload_album_art( @albums );
+    });
+};
+
 sub set_backlight($status) {
     say "Have sleep status '$status'";
     return Future->done()
@@ -302,6 +350,11 @@ sub set_backlight($status) {
                 say "Inhibitor was not (yet?!) initialized";
             };
 
+            # And throw away our current connection to the LoupeDeck
+            # This doesn't play nice with timers, but we have to live with that
+            say "Throwing away LD";
+            undef $ld;
+
         } else {
             # Power on/restore the display
             # except that we need to figure out where the network connection
@@ -313,27 +366,17 @@ sub set_backlight($status) {
             for my $uri (HID::LoupedeckCT->list_loupedeck_devices()) {
                 say $uri;
             };
-            say "Current device we think we use";
-            say $ld->uri;
+            say sprintf "Current device we think we use is %s", $ld->uri;
 
             # Maybe we should loop until we (re)find the LD?!
-
-            # XXX This might need to be repeated until we (re)find a device
-            #     or until we give up
+            say "Creating fresh LD";
             $ld = init_ld($uri);
-            say "Reconnecting LD";
-            connect_ld->then(sub {
-                $res = $ld->restore_backlight_level
-                ->catch(sub {
-                    warn "Error when restoring";
-                    warn Dumper \@_;
-                });
-            })->then(sub {
-                # We should maybe have a list of things we want to reinitialize
-                # like also everything that depends on other state?!
-                reload_album_art( @albums );
 
-            })->retain;
+            ## Well, we know better than whatever our local state is...
+            #$ld->status('disconnected');
+
+            $res = reconnect_ld;
+
             say "Re-acquiring (next) sleep inhibitor";
             init_sleep_inhibitor()->retain;
         };
@@ -438,7 +481,8 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
     #say "Initializing screen";
     # Button 0 stays empty
     @albums = (undef, $newest_20_f->get);
-    my $ld = $ld_f->get;
+    #my $_ld = $ld_f->get;
+    $ld //= $ld_f->get;
     say sprintf "Initializing Loupedeck screen (%d items)", $#albums;
 
     #my @image;
@@ -447,7 +491,20 @@ my $ready = Future->wait_all( $connected, $newest_20, $dbus_ready, $dbus_session
 
     # Rescan if a process is running
     $rescan = Mojo::IOLoop->recurring( 1 => sub {
-        rescan_processes()
+        if( ! $ld ) {
+            # Hopefully something will reconstruct the LD soonish
+            say "Creating a fresh LD within the primary event checker";
+            $ld = init_ld($uri);
+        } elsif( $ld->connected ) {
+            rescan_processes()
+        } else {
+            # Well, we only do that if we didn't kick off a reconnect
+            # attempt already
+            if( $ld->status ne 'connecting' ) {
+                say sprintf "Status is '%s', reconnecting", $ld->status;
+                reconnect_ld->retain;
+            };
+        };
     });
 
     return reload_album_art( @albums );
