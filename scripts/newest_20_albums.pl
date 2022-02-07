@@ -76,9 +76,15 @@ sub init_ld($uri) {
 
             if( $info->{released} ) {
                 #say $info->{button};
-                say $albums[ $info->{button} ]->name;
-
-                play_album($albums[ $info->{button} ]);
+                my $album = $albums[ $info->{button} ];
+                if( $album ) {
+                    say $album->name;
+                    play_album($albums[ $info->{button} ]);
+                } else {
+                    # ... we need to fix up something here for the
+                    # "not-existing" album...
+                    # play_album($albums[ $info->{button} ]);
+                };
             };
 
         } else {
@@ -656,9 +662,76 @@ my @check = (
           },
           # Maybe we want on_show/on_hide to configure the buttons and allow
           # changing of the config?!
+        },
 
+          # Scan for SMPlayer playback status, so we can have a hotkey for play/pause
+        { name => 'Media Player',
+          #cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
+          on_tick => sub( $cfg, $dummy_pid ) {
+              # Later, move that to
+              my $player_name = 'SMPlayer';
+
+              # Ask the player about status
+              $msgr->send_call(
+                  path        => '/org/mpris/MediaPlayer2',
+                  interface   => 'org.freedesktop.DBus.Properties',
+                  member      => 'GetAll',
+                  destination => 'org.mpris.MediaPlayer2.' . lc($player_name),
+                  signature   => 's',
+                  #body        => [ q<org.mpris.MediaPlayer2> ],
+                  body        => [ q<org.mpris.MediaPlayer2.Player> ],
+              )->with_roles('+Futurify')->futurify->then(sub {
+                  my( $player_status ) = @_;
+
+                  #warn Dumper $player_status->get_body;
+                  my $s = $player_status->get_body->[0];
+                  my $status = $s->{PlaybackStatus};
+                  #warn "Player status is <$status>";
+                  # We also have title and file, just in case ...
+
+                  # Set our button accordingly
+                  if( $status =~ /^(Playing|Paused)$/ ) {
+                      if( $1 eq 'Playing' ) {
+                          $ld->set_button_color($cfg->{button},127,127,127)->retain;
+                      } else {
+                          $ld->set_button_color($cfg->{button},32,32,32)->retain;
+                      };
+                      $actions{ $cfg->{button}} = sub {
+                          warn "Pausing media player '$player_name'";
+                          $msgr->send_call(
+                              path        => '/org/mpris/MediaPlayer2',
+                              interface   => 'org.mpris.MediaPlayer2.Player',
+                              member      => 'PlayPause',
+                              destination => 'org.mpris.MediaPlayer2.' . lc($player_name),
+                              signature   => '',
+                              #body        => [ q<org.mpris.MediaPlayer2> ],
+                              #body        => [],
+                          )->with_roles('+Futurify')->futurify
+                          ->catch(sub {
+                              warn Dumper \@_;
+                              exit;
+                           })->retain;
+                      };
+                  } else {
+                      $ld->set_button_color($cfg->{button},0,0,0)->retain;
+                      $actions{ $cfg->{button}} = undef;
+                  };
+
+                  # Should we (re)register the play/pause button here?!
+
+              })->catch(sub {
+                  warn Dumper \@_;
+                  exit;
+              })->retain;
+          },
+          button => 21,
         },
 );
+
+# Scan for sound producers/media players?!
+# pacmd list-sink-inputs |perl -nlE '/(state|index|client):(.*)/ and say qq($1:$2)'
+
+
 
 # Actually, this not only scans processes but also windows. This will need
 # splitting and moving to a different module :)
