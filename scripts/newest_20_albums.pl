@@ -544,6 +544,70 @@ sub get_named_focus_window {
     return $win
 }
 
+sub dbus_mpris_mplayer2_playpause {
+    my ($cfg, $player_name) = @_;
+    # Ask the player about status
+
+    my $call = eval {
+
+        $msgr->send_call(
+            path        => '/org/mpris/MediaPlayer2',
+            interface   => 'org.freedesktop.DBus.Properties',
+            member      => 'GetAll',
+            destination => 'org.mpris.MediaPlayer2.' . lc( $player_name ),
+            signature   => 's',
+            body        => [ q<org.mpris.MediaPlayer2.Player> ],
+        )->with_roles('+Futurify')->futurify;
+    };
+
+    if( $call ) {
+        $call->then(sub( $player_status ) {
+
+            #warn Dumper $player_status->get_body;
+            my $s = $player_status->get_body->[0];
+            my $status = $s->{PlaybackStatus};
+            #warn "Player status is <$status>";
+            # We also have title and file, just in case ...
+
+            # Set our button accordingly
+            if( $status =~ /^(Playing|Paused)$/ ) {
+                if( $1 eq 'Playing' ) {
+                    $ld->set_button_color($cfg->{button},127,127,127)->retain;
+                } else {
+                    $ld->set_button_color($cfg->{button},32,32,32)->retain;
+                };
+                $actions{ $cfg->{button}} = sub {
+                    eval {
+                        warn "Pausing media player '$player_name'";
+                        $msgr->send_call(
+                            path        => '/org/mpris/MediaPlayer2',
+                            interface   => 'org.mpris.MediaPlayer2.Player',
+                            member      => 'PlayPause',
+                            destination => 'org.mpris.MediaPlayer2.' . lc( $player_name ),
+                            signature   => '',
+                            #body        => [ q<org.mpris.MediaPlayer2> ],
+                            #body        => [],
+                        )->with_roles('+Futurify')->futurify
+                        ->catch(sub {
+                            warn Dumper \@_;
+                            exit;
+                        })->retain;
+                    };
+                };
+            } else {
+                $ld->set_button_color($cfg->{button},0,0,0)->retain;
+                $actions{ $cfg->{button}} = undef;
+            };
+
+            # Should we (re)register the play/pause button here?!
+
+        })->catch(sub {
+            warn Dumper \@_;
+            #exit;
+        })->retain;
+    };
+}
+
 my @check = (
         { name => 'Webcam',
           cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
@@ -665,66 +729,19 @@ my @check = (
         },
 
           # Scan for SMPlayer playback status, so we can have a hotkey for play/pause
-        { name => 'Media Player',
+        { name => 'SMPlayer Media Player',
           #cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
           on_tick => sub( $cfg, $dummy_pid ) {
-              # Later, move that to
-              my $player_name = 'SMPlayer';
-
-              # Ask the player about status
-              $msgr->send_call(
-                  path        => '/org/mpris/MediaPlayer2',
-                  interface   => 'org.freedesktop.DBus.Properties',
-                  member      => 'GetAll',
-                  destination => 'org.mpris.MediaPlayer2.' . lc($player_name),
-                  signature   => 's',
-                  #body        => [ q<org.mpris.MediaPlayer2> ],
-                  body        => [ q<org.mpris.MediaPlayer2.Player> ],
-              )->with_roles('+Futurify')->futurify->then(sub {
-                  my( $player_status ) = @_;
-
-                  #warn Dumper $player_status->get_body;
-                  my $s = $player_status->get_body->[0];
-                  my $status = $s->{PlaybackStatus};
-                  #warn "Player status is <$status>";
-                  # We also have title and file, just in case ...
-
-                  # Set our button accordingly
-                  if( $status =~ /^(Playing|Paused)$/ ) {
-                      if( $1 eq 'Playing' ) {
-                          $ld->set_button_color($cfg->{button},127,127,127)->retain;
-                      } else {
-                          $ld->set_button_color($cfg->{button},32,32,32)->retain;
-                      };
-                      $actions{ $cfg->{button}} = sub {
-                          warn "Pausing media player '$player_name'";
-                          $msgr->send_call(
-                              path        => '/org/mpris/MediaPlayer2',
-                              interface   => 'org.mpris.MediaPlayer2.Player',
-                              member      => 'PlayPause',
-                              destination => 'org.mpris.MediaPlayer2.' . lc($player_name),
-                              signature   => '',
-                              #body        => [ q<org.mpris.MediaPlayer2> ],
-                              #body        => [],
-                          )->with_roles('+Futurify')->futurify
-                          ->catch(sub {
-                              warn Dumper \@_;
-                              exit;
-                           })->retain;
-                      };
-                  } else {
-                      $ld->set_button_color($cfg->{button},0,0,0)->retain;
-                      $actions{ $cfg->{button}} = undef;
-                  };
-
-                  # Should we (re)register the play/pause button here?!
-
-              })->catch(sub {
-                  warn Dumper \@_;
-                  exit;
-              })->retain;
+              dbus_mpris_mplayer2_playpause( $cfg, 'SMPlayer');
           },
           button => 21,
+        },
+        { name => 'mpv Media Player',
+          #cmdline => qr/\bgphoto2\b.*?\b\0--capture-movie\0/ms,
+          on_tick => sub( $cfg, $dummy_pid ) {
+              dbus_mpris_mplayer2_playpause( $cfg, 'mpv');
+          },
+          button => 22,
         },
 );
 
