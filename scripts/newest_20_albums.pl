@@ -621,6 +621,7 @@ my @check = (
           none_action    => sub( $cfg, $pid ) {
               $ld->set_button_color($cfg->{button},0,0,0)->retain;
               $actions{ $cfg->{button}} = sub {
+                  system("gio mount --unmount gphoto2://Canon_Inc._Canon_Digital_Camera/");
                   system("gphoto2 --stdout --capture-movie | ffmpeg -loglevel error -nostats -hide_banner -i - -vcodec rawvideo -tune zerolatency -pix_fmt yuv420p -threads 0 -f v4l2 /dev/video1 &");
               },
           },
