@@ -60,11 +60,6 @@ my %module = (
         'Mojolicious'           => 0,
         'Moo'                   => 2,
 
-        # For a client
-        'Mojo::Promise::Role::Futurify' => 0,
-        'Protocol::DBus::Client::Mojo'  => 0,
-        'Socket::MsgHdr'                => 0,
-
         @interface_detect,
 
         # for loading images into the screen
