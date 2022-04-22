@@ -129,12 +129,16 @@ and as raw path names for (USB) serial connections.
 =cut
 
 sub list_loupedeck_devices_windows {
-    return map {
+	my @devices =  map {
         my $addr = join ",", $_->get_ipaddresses;
         $addr =~ m/^(100\.127\.\d+)\.2$/
         ? "ws://$1.1/"
         : ()
     } Win32::IPConfig->new->get_adapters;
+
+	# Also scan the com ports
+
+	@devices
 }
 
 sub list_loupedeck_devices_other {
