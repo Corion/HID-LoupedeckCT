@@ -110,10 +110,10 @@ sub _get_cbid( $self ) {
 }
 
 sub connected( $self ) {
-	if( $self->status ne 'connected' ) {
+    if( $self->status ne 'connected' ) {
         say sprintf "Loupedeck connection status is '%s'", $self->status;
-	};
-	$self->status eq 'connected'
+    };
+    $self->status eq 'connected'
 }
 
 =head1 METHODS
@@ -207,13 +207,13 @@ sub send_command( $self, $command, $payload ) {
 
     eval {
         $self->tx->send({ binary => $p });
-	};
-	if( $@) {
-		warn "$@, setting to 'disconnected'";
-		# Let's assume that we can/need simply reconnect
-		$self->status('disconnected');
-		#exit;
-	};
+    };
+    if( $@) {
+        warn "$@, setting to 'disconnected'";
+        # Let's assume that we can/need simply reconnect
+        $self->status('disconnected');
+        #exit;
+    };
     return $res;
 }
 
@@ -386,18 +386,18 @@ sub _new_serial_tx_p( $self, $uri ) {
     return Mojo::Transaction::WebSocket::Serial->new(
         name => $uri,
         on_close => sub {
-			$self->status('disconnected');
+            $self->status('disconnected');
             #say "Reconnecting";
             #$self->connect($self->uri)->then(sub {
-			#	$self->{needs_refresh} = 1;
-			#})->retain();
+            #   $self->{needs_refresh} = 1;
+            #})->retain();
             #()
         },
     )->open_p
 }
 
 sub connect( $self, $uri = $self->uri ) {
-	$self->status('connecting');
+    $self->status('connecting');
 
     #$res->on_ready(sub {
     #   say "->connect() result is ready";
@@ -405,13 +405,13 @@ sub connect( $self, $uri = $self->uri ) {
 
     my $do_connect;
     if( ! $uri ) {
-		# There's just no good way to do anything here. For some reason we
-		# didn't find the device - maybe we tried to connect to early after
-		# waking up from hibernation?!
-		# In any case, we should tell the user here:
-		croak "Can't connect: No device detected";
+        # There's just no good way to do anything here. For some reason we
+        # didn't find the device - maybe we tried to connect to early after
+        # waking up from hibernation?!
+        # In any case, we should tell the user here:
+        croak "Can't connect: No device detected";
 
-	} elsif( $uri =~ m!^wss?://!) {
+    } elsif( $uri =~ m!^wss?://!) {
 
         $do_connect = $self->ua->websocket_p($uri);
     } else {
@@ -450,7 +450,7 @@ sub connect( $self, $uri = $self->uri ) {
         #    $s->{_first_connected}->done($tx);
         #};
 
-		Future->done( )
+        Future->done( )
 
     })->catch(sub {
         say "Error";
@@ -461,9 +461,9 @@ sub connect( $self, $uri = $self->uri ) {
     });
 
     #if( ! $self->{_first_connected}) {
-	#	$self->{_first_connected} //= $res;
-	#	say "Setting up primary future $res";
-	#};
+    #   $self->{_first_connected} //= $res;
+    #   say "Setting up primary future $res";
+    #};
     return $res
 };
 
@@ -476,13 +476,13 @@ Disconnects gracefully from the Loupedeck.
 =cut
 
 sub disconnect( $self ) {
-	if( $self->tx ) {
-		say "Disconnecting websocket";
-		# We don't update our status here to prevent reconnecting?!
-		return $self->tx->finish
-	} else {
-		return
-	}
+    if( $self->tx ) {
+        say "Disconnecting websocket";
+        # We don't update our status here to prevent reconnecting?!
+        return $self->tx->finish
+    } else {
+        return
+    }
 }
 
 sub DESTROY {
