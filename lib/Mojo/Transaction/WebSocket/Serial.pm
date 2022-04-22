@@ -23,8 +23,8 @@ sub masked { 1 }; # we are the "client"
 sub compressed { 0 }; # no compression
 
 sub _open_serial_other {
-	my( $self, $portname ) = @_;
-	require IO::Termios;
+    my( $self, $portname ) = @_;
+    require IO::Termios;
 
     sysopen my $fh, $portname, O_RDWR
         or die "sysopen '$portname': $!";
@@ -32,29 +32,34 @@ sub _open_serial_other {
     my $handle = IO::Termios->new($fh) or die "IO::Termios->new: $!";
     $handle->set_mode('9600,8,n,2');
     $handle->cfmakeraw;
-	return $handle
+    return $handle
 }
 
 sub _open_serial_win32 {
-	my( $self, $portname ) = @_;
-	require Win32::SerialPort;
+    my( $self, $portname ) = @_;
+    require Win32::SerialPort;
 
-	require File::Temp;
-	my( $fh, $tmpname ) = File::Temp::tempfile();
-	close $fh;
+    no warnings 'redefine';
+    local *Win32::SerialPort::TIEHANDLE = sub {
+        my( $class, $portname) = @_;
+        warn "Custom";
+        my $port = Win32::SerialPort->new($portname)
+            or croak "Can't open '$portname': $^E";
+        $port->baudrate(9600);
+        $port->databits(8);
+        $port->parity("none");
+        $port->stopbits(1);
+        $port->binary(1);
+        $port->write_settings or warn $^E;
+        return $port
+    };
 
-	my $port = Win32::SerialPort->new($portname)
-	    or croak "CanÄt open '$portname': $^E";
-	$port->baudrate(9600);
-	$port->bits(8);
-	$port->stopbits(1);
-	$port->write_settings;
-	$port->save( $tmpname );
+    local *FH;
+    my $port = tie *FH, 'Win32::SerialPort', $portname
+        or warn "No handle?!";
+    #binmode *FH; # just to be certain
 
-	local *FH;
-	$port = tie *FH, 'Win32::SerialPort', $tmpname;
-    binmode $fh; # just to be certain
-	return $fh
+    return \*FH
 }
 
 sub open_p {
@@ -63,8 +68,9 @@ sub open_p {
     my $res = Future::Mojo->new(Mojo::IOLoop->new);
 
     my $fn = $self->name;
-	my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
-	my $handle = $self->$serial( $fn );
+    my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
+    my $handle = $self->$serial( $fn );
+    warn $handle;
     my $h = Mojo::IOLoop::Stream->new($handle);
     $self->stream($h);
 
