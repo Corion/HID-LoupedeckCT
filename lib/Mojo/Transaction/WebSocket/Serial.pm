@@ -5,7 +5,6 @@ use Mojo::WebSocket 'WS_PING', 'WS_PONG', 'WS_TEXT', 'WS_BINARY', 'WS_CLOSE';
 use Future::Mojo;
 use Encode 'encode';
 
-use IO::Termios;
 use Fcntl;
 use MIME::Base64 'encode_base64';
 
@@ -23,18 +22,49 @@ has max_websocket_size => sub { $ENV{MOJO_MAX_WEBSOCKET_SIZE} || 262144 };
 sub masked { 1 }; # we are the "client"
 sub compressed { 0 }; # no compression
 
+sub _open_serial_other {
+	my( $self, $portname ) = @_;
+	require IO::Termios;
+
+    sysopen my $fh, $portname, O_RDWR
+        or die "sysopen '$portname': $!";
+    binmode $fh; # just to be certain
+    my $handle = IO::Termios->new($fh) or die "IO::Termios->new: $!";
+    $handle->set_mode('9600,8,n,2');
+    $handle->cfmakeraw;
+	return $handle
+}
+
+sub _open_serial_win32 {
+	my( $self, $portname ) = @_;
+	require Win32::SerialPort;
+
+	require File::Temp;
+	my( $fh, $tmpname ) = File::Temp::tempfile();
+	close $fh;
+
+	my $port = Win32::SerialPort->new($portname)
+	    or croak "CanÄt open '$portname': $^E";
+	$port->baudrate(9600);
+	$port->bits(8);
+	$port->stopbits(1);
+	$port->write_settings;
+	$port->save( $tmpname );
+
+	local *FH;
+	$port = tie *FH, 'Win32::SerialPort', $tmpname;
+    binmode $fh; # just to be certain
+	return $fh
+}
+
 sub open_p {
     my( $self ) = @_;
 
     my $res = Future::Mojo->new(Mojo::IOLoop->new);
 
     my $fn = $self->name;
-    sysopen my $fh, $fn, O_RDWR
-        or die "sysopen '$fn': $!";
-    binmode $fh; # just to be certain
-    my $handle = IO::Termios->new($fh) or die "IO::Termios->new: $!";
-    $handle->set_mode('9600,8,n,2');
-    $handle->cfmakeraw;
+	my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
+	my $handle = $self->$serial( $fn );
     my $h = Mojo::IOLoop::Stream->new($handle);
     $self->stream($h);
 

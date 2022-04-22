@@ -18,10 +18,13 @@ my $distlink = $distbase;
 my @tests = map { glob $_ } 't/*.t', 't/*/*.t';
 
 my @interface_detect;
+my @serial_communication;
 if( $^O =~ /\bmswin/i) {
     push @interface_detect, 'Win32::IPConfig' => 0;
+	push @serial_communication, 'Win32::SerialPort' => 0;
 } else {
     push @interface_detect, 'IO::Interface::Simple' => 0;
+	push @serial_communication, 'IO::Termios' => 0;
 };
 
 my %module = (
@@ -40,8 +43,8 @@ my %module = (
             bugtracker => "https://rt.cpan.org/Public/Dist/Display.html?Name=$distbase",
             license    => "https://dev.perl.org/licenses/",
         },
-        #dynamic_config   => 0, # we promise to keep META.* up-to-date
-        #x_static_install => 1, # we are pure Perl and don't do anything fancy
+        dynamic_config   => 1,
+        x_static_install => 0,
     },
 
     MIN_PERL_VERSION => '5.020', # This could be lowered if there is demand
@@ -59,8 +62,9 @@ my %module = (
         'Future::Mojo'          => 0,
         'Mojolicious'           => 0,
         'Moo'                   => 2,
-
+		
         @interface_detect,
+		@serial_communication,
 
         # for loading images into the screen
         'Imager'                           => 0,
