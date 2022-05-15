@@ -29,6 +29,8 @@ use Future::Mojo;
 use experimental 'signatures';
 no warnings 'experimental';
 
+our $VERSION = '0.01';
+
 =head1 NAME
 
 HID::LoupedeckCT - Perl driver for the Loupedeck CT keyboard
