@@ -811,7 +811,7 @@ sub load_image( $self, %options ) {
     return $res
 }
 
-sub _text_image( $self, $w,$h, $str, %options ) {
+sub _text_image_line( $self, $w,$h, $str, %options ) {
     my $bg   = delete $options{ bgcolor } || [0,80,0];
     my $fg   = delete $options{ color } || [255,255,255];
     my $font = delete $options{ font } || '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf';
@@ -841,22 +841,62 @@ sub _text_image( $self, $w,$h, $str, %options ) {
                   image => $btn1,
                 );
     my ($rw, $rh) = ($r-$l, $b-$t);
-    my $sz = $rw > $rh ? $rw : $rh;
+    #my $sz = $rw > $rh ? $rw : $rh;
     my $btn = Imager->new(
-        xsize => $sz,
-        ysize => $sz,
+        xsize => $rw,
+        ysize => $rh,
     );
     # Paint the background
     $btn->box( filled => 1, color => $bg );
     # Draw the font
     $font->align( string => $str,
-                  x => $sz / 2,
-                  y => $sz / 2,
+                  x => $rw / 2,
+                  y => $rh / 2,
                   halign => 'center',
                   valign => 'center',
                   image => $btn,
                 );
     return $btn;
+}
+
+sub _text_image( $self, $w,$h, $str, %options ) {
+    # First, find the font size we can use:
+    my @lines = split /\r?\n/, $str;
+
+    my @images = map {
+        $self->_text_image_line( $w,$h, $_, %options );
+    } @lines;
+
+    my ($height, $width) = (0,0);
+    for (@images) {
+        $height += $_->getheight;
+        $width  = $width < $_->getwidth ? $_->getwidth : $width;
+    }
+
+    my $ofs = 0; # offset where we start pasting the lines,
+                 # center aligned
+    if( $width <= $height ) {
+        $width = $height
+    } else {
+        $ofs = ($width-$height)/2;
+        $height = $width;
+    };
+
+    my $res;
+    # Stitch the images together to form one large image
+    $res = Imager->new(
+        xsize => $width,
+        ysize => $height,
+    );
+
+    for my $img (@images) {
+        $width, $img->getwidth, (($width - $img->getwidth) /2);
+        my $left = ($width - $img->getwidth) /2;
+        $res->paste( left => $left, top => $ofs, img => $img );
+        $ofs += $img->getheight;
+    }
+
+    return $res
 }
 
 =head2 C<< ->load_image_button >>
