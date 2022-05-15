@@ -893,7 +893,7 @@ sub _text_image( $self, $w,$h, $str, %options ) {
         $width, $img->getwidth, (($width - $img->getwidth) /2);
         my $left = ($width - $img->getwidth) /2;
         $res->paste( left => $left, top => $ofs, img => $img );
-        $ofs += $img->getheight;
+        $ofs += $img->getheight +2;
     }
 
     return $res
