@@ -873,12 +873,15 @@ sub _text_image( $self, $w,$h, $str, %options ) {
         $width  = $width < $_->getwidth ? $_->getwidth : $width;
     }
 
+    my $linegap = 48; # pixels in render height, not in result height ...
+    $height += @images-1 * $linegap;
+
     my $ofs = 0; # offset where we start pasting the lines,
                  # center aligned
     if( $width <= $height ) {
         $width = $height
     } else {
-        $ofs = ($width-$height)/2;
+        $ofs = ($width-$height-$linegap*@images)/2;
         $height = $width;
     };
 
@@ -890,10 +893,9 @@ sub _text_image( $self, $w,$h, $str, %options ) {
     );
 
     for my $img (@images) {
-        $width, $img->getwidth, (($width - $img->getwidth) /2);
         my $left = ($width - $img->getwidth) /2;
         $res->paste( left => $left, top => $ofs, img => $img );
-        $ofs += $img->getheight +2;
+        $ofs += $img->getheight + $linegap;
     }
 
     return $res
