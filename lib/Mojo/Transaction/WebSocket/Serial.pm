@@ -4,6 +4,7 @@ use Mojo::Base 'Mojo::EventEmitter';
 use Mojo::WebSocket 'WS_PING', 'WS_PONG', 'WS_TEXT', 'WS_BINARY', 'WS_CLOSE';
 use Future::Mojo;
 use Encode 'encode';
+use Scalar::Util 'weaken';
 
 use Fcntl;
 use MIME::Base64 'encode_base64';
@@ -70,9 +71,10 @@ sub open_p {
     my $fn = $self->name;
     my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
     my $handle = $self->$serial( $fn );
-    warn $handle;
+    #warn __PACKAGE__ . ": Opened serial";
     my $h = Mojo::IOLoop::Stream->new($handle);
     $self->stream($h);
+    weaken( my $s = $self );
 
     my $read_buffer;
     $h->on(read => sub {
@@ -86,17 +88,17 @@ sub open_p {
         # If we're still initializing the WS, don't trigger other events
         # We should check the challenge/response handshake ...
 
-        if( ! $self->{_switched_to_websocket}) {
+        if( ! $s->{_switched_to_websocket}) {
             #say "***";
             #$self->hexdump('< ',$read_buffer);
             if( $read_buffer =~ s!\A(HTTP/1.1 101.*\r\n\r\n)!!s ) {
-                $self->{_switched_to_websocket} = 1;
+                $s->{_switched_to_websocket} = 1;
                 #say "Switched to WS";
                 #say "Connected to LD via WS-over-serial";
 
                 # Launch our keep-alive ping
-                $self->{_ping} = Mojo::IOLoop->recurring( 5 => sub {
-                    $self->send([1,0,0,0,WS_PING,''] );
+                $s->{_ping} = Mojo::IOLoop->recurring( 5 => sub {
+                    $s->send([1,0,0,0,WS_PING,''] );
                 });
                 $res->done($self);
             } else {
@@ -109,19 +111,21 @@ sub open_p {
             #say "Nothing read, nothing to do";
         } else {
             # We're talking Websocket-over-serial now:
-            my $max = $self->max_websocket_size;
+            my $max = $s->max_websocket_size;
             while (my $frame = Mojo::WebSocket::parse_frame(\$read_buffer, $max)) {
-                $self->finish(1009) and last unless ref $frame;
-                $self->on_ws_frame($frame);
+                $s->finish(1009) and last unless ref $frame;
+                $s->on_ws_frame($frame);
             }
         };
     });
 
     $h->on( close => sub {
         #say "LD $fn has gone away, reconnecting...";
-        my $c = $self->on_close;
-        if( $c ) {
-            eval { $c->($self) }
+        if( $s ) {
+            my $c = $s->on_close;
+            if( $c ) {
+                eval { $c->($s) }
+            };
         };
     });
 
@@ -129,10 +133,6 @@ sub open_p {
         my ( $h, $error ) = @_;
         say "LD $fn has error '$error'";
     });
-
-    #$h->on(write => sub {
-    #    $self->server_write;
-    #});
 
     $h->start;
     say "Writing request to $h";
@@ -149,6 +149,7 @@ Connection: Upgrade
 Upgrade: websocket
 HTTP
 
+    # Guard against the source code only having Unix newlines:
     $ws_startup =~ s!\s*\x0a!\x0d\x0a!sg;
     $h->write($ws_startup."\x0d\x0a");
 
