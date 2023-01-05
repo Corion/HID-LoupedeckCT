@@ -405,10 +405,6 @@ sub _new_serial_tx_p( $self, $uri ) {
 sub connect( $self, $uri = $self->uri ) {
     $self->status('connecting');
 
-    #$res->on_ready(sub {
-    #   say "->connect() result is ready";
-    #});
-
     my $do_connect;
     if( ! $uri ) {
         # There's just no good way to do anything here. For some reason we
