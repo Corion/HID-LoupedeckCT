@@ -1004,6 +1004,49 @@ sub update_screen( $self, $top=0, $left=0, $width=undef,$height=undef ) {
 
 1;
 
+=head1 EVENTS
+
+The object emits the following events
+
+=over 4
+
+=item B<turn>
+
+  id => $knob
+  direction => $direction
+
+Emitted when one of the knobs is turned
+
+=item B<key>
+
+  id => $key
+  released => $released
+
+Emitted when one of the keys is pressed
+
+=item B<touch>
+
+  finger => $finger,
+  released => $rel,
+  'x' => $x,
+  'y' => $y,
+  button => $button,
+
+Emitted when one of the screen buttons is touched/released. The finger index
+is also sent
+
+=item B<wheel_touch>
+
+  finger => $finger
+  released => $rel
+  'x' => $x
+  'y' => $y
+
+Emitted when the wheel screen is touched/released. The finger index
+is also sent
+
+=back
+
 =head1 SEE ALSO
 
 L<https://github.com/bitfocus/loupedeck-ct/blob/master/index.js>
