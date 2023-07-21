@@ -9,6 +9,8 @@ use Mojo::UserAgent;
 use Mojo::WebSocket qw(WS_PING);
 use Mojo::Transaction::WebSocket::Serial;
 use Mojo::Base 'Mojo::EventEmitter';
+use Future::Mojo;
+use Future::Utils 'try_repeat_until_success';
 use Carp 'croak';
 use Scalar::Util 'weaken';
 
@@ -214,8 +216,9 @@ sub send_command( $self, $command, $payload ) {
     eval {
         $self->tx->send({ binary => $p });
     };
-    if( $@) {
-        warn "$@, setting to 'disconnected'";
+    if(my $err = $@) {
+        $err =~ s!\r?\n!!;
+        warn "$err, setting status to 'disconnected'";
         # Let's assume that we can/need simply reconnect
         $self->status('disconnected');
         #exit;
@@ -389,17 +392,33 @@ sub on_ld_message( $self, $raw ) {
 =cut
 
 sub _new_serial_tx_p( $self, $uri ) {
-    return Mojo::Transaction::WebSocket::Serial->new(
-        name => $uri,
-        on_close => sub {
-            $self->status('disconnected');
-            #say "Reconnecting";
-            #$self->connect($self->uri)->then(sub {
-            #   $self->{needs_refresh} = 1;
-            #})->retain();
-            #()
-        },
-    )->open_p
+#    my $res = try_repeat_until_success {
+#        warn localtime . "Next attempt";
+        my $conn = Mojo::Transaction::WebSocket::Serial->new(
+            name => $uri,
+            on_close => sub {
+                $self->status('disconnected');
+            },
+        )->open_p;
+#warn localtime . "Setting up timeout";
+#        my $timeout = Future::Mojo->new_timeout( 5 )->on_ready(sub {
+#            warn "Timeout while connecting";
+#        });
+
+#warn localtime . "Waiting for result";
+        #return Future->wait_any( $conn, $timeout )
+#    };
+#my $r = Future->wait_any( $conn, $timeout );
+
+    # Extract the first successful future
+#    my $res = $r->then( sub( $first ) {
+#        if( $first eq 'Timeout' ) {
+#            return Future->fail;
+#        };
+#        return Future->done($first);
+#    });
+my $res = $conn;
+    return $res;
 }
 
 sub connect( $self, $uri = $self->uri ) {
