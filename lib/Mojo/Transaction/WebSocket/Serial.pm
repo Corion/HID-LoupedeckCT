@@ -152,6 +152,8 @@ Connection: Upgrade
 Upgrade: websocket
 HTTP
 
+#sleep 1;
+
     # Guard against the source code only having Unix newlines:
     $ws_startup =~ s!\s*\x0a!\x0d\x0a!sg;
     $h->write($ws_startup."\x0d\x0a");
