@@ -393,13 +393,20 @@ sub on_ld_message( $self, $raw ) {
 
 sub _new_serial_tx_p( $self, $uri ) {
 #    my $res = try_repeat_until_success {
-#        warn localtime . "Next attempt";
-        my $conn = Mojo::Transaction::WebSocket::Serial->new(
-            name => $uri,
-            on_close => sub {
-                $self->status('disconnected');
-            },
-        )->open_p;
+        my $conn = eval { Mojo::Transaction::WebSocket::Serial->new(
+                name => $uri,
+                on_close => sub {
+                    warn "!!! closed, setting status to 'disconnected'";
+                    $self->status('disconnected');
+                },
+            )->open_p
+        };
+
+        if( ! $conn ) {
+            warn "Could not create a Promise for connecting?!";
+            exit 1;
+        }
+
 #warn localtime . "Setting up timeout";
 #        my $timeout = Future::Mojo->new_timeout( 5 )->on_ready(sub {
 #            warn "Timeout while connecting";
