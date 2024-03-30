@@ -25,8 +25,11 @@ sub compressed { 0 }; # no compression
 
 sub _open_serial_other {
     my( $self, $portname ) = @_;
-    require IO::Termios;
-
+    eval { require IO::Termios };
+    if( $@ ) {
+        warn $@;
+        exit 1;
+    }
     sysopen my $fh, $portname, O_RDWR
         or die "sysopen '$portname': $!";
     binmode $fh; # just to be certain
