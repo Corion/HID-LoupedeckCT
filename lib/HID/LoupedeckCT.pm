@@ -213,10 +213,16 @@ sub send_command( $self, $command, $payload ) {
     };
     $self->hexdump('> ',$vis);
 
-    eval {
-        $self->tx->send({ binary => $p });
+    my $err;
+    if( $self->tx ) {
+        eval {
+            $self->tx->send({ binary => $p });
+        };
+        $err = $@;
+    } else {
+        $err = 'not connected';
     };
-    if(my $err = $@) {
+    if($err = $@) {
         $err =~ s!\r?\n!!;
         warn "$err, setting status to 'disconnected'";
         # Let's assume that we can/need simply reconnect
@@ -480,10 +486,10 @@ sub connect( $self, $uri = $self->uri ) {
 
         Future->done( )
 
-    })->catch(sub {
-        say "Error";
-        use Data::Dumper;
-        say Dumper \@_;
+    #})->catch(sub {
+    #    say "Error";
+    #    use Data::Dumper;
+    #    say Dumper \@_;
     })->on_ready(sub {
         say "->connect(): $_[0] is ready";
     });
@@ -494,6 +500,12 @@ sub connect( $self, $uri = $self->uri ) {
     #};
     return $res
 };
+
+sub connect_retry( $self, $uri = $self->uri ) {
+    my $res = try_repeat_until_success {
+        $self->connect( $uri )
+    };
+}
 
 =head2 C<< ->disconnect >>
 

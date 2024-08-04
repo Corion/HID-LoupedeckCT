@@ -164,7 +164,7 @@ eval {
     }; warn $@ if $@;
 });
 
-$ld->connect()->then(sub {;
+$ld->connect_retry()->then(sub {;
     initialize($ld);
 })->retain;
 
