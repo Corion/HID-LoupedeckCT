@@ -34,7 +34,8 @@ sub _open_serial_other {
         or die "sysopen '$portname': $!";
     binmode $fh; # just to be certain
     my $handle = IO::Termios->new($fh) or die "IO::Termios->new: $!";
-    $handle->set_mode('9600,8,n,2');
+    #$handle->set_mode('9600,8,n,2');
+    $handle->set_mode('115200,8,n,2');
     $handle->cfmakeraw;
     return $handle
 }
@@ -101,6 +102,7 @@ sub open_p {
 
                 # Launch our keep-alive ping
                 $s->{_ping} = Mojo::IOLoop->recurring( 5 => sub {
+                    #warn "Ping";
                     $s->send([1,0,0,0,WS_PING,''] );
                 });
                 $res->done($self);
