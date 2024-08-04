@@ -791,10 +791,17 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 
 sub load_image( $self, %options ) {
     # load the image
-    if( ! defined $options{ image }) {
+    if( ! exists $options{ image }) {
         my $fn = delete $options{ file };
+        if( ! $options{ file }) {
+            # no image to load
+            return Future->fail( "error", "Did not get an image filename to load" );
+        };
         $options{ image } = Imager->new( file => $fn)
             or croak "Couldn't load image from '$fn': $!"
+
+    } elsif( ! defined $options{ image }) {
+        return Future->fail( "error", "Did not get an image" );
     };
 
     my $screen = delete $options{ screen } // 'middle';
