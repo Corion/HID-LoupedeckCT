@@ -5,6 +5,7 @@ use Mojo::WebSocket 'WS_PING', 'WS_PONG', 'WS_TEXT', 'WS_BINARY', 'WS_CLOSE';
 use Future::Mojo;
 use Encode 'encode';
 use Scalar::Util 'weaken';
+use experimental 'signatures';
 
 use Fcntl;
 use MIME::Base64 'encode_base64';
@@ -67,22 +68,19 @@ sub _open_serial_win32 {
     return \*FH
 }
 
-sub open_p {
-    my( $self ) = @_;
-
-    my $res = Future::Mojo->new(Mojo::IOLoop->new);
-
-    my $fn = $self->name;
-    my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
-    my $handle = $self->$serial( $fn );
-    #warn __PACKAGE__ . ": Opened serial";
-    my $h = Mojo::IOLoop::Stream->new($handle);
-    $self->stream($h);
+sub setup_stream_handlers( $self, $stream, $res, $timeout_id ) {
     weaken( my $s = $self );
-
+    $self->stream($stream);
     my $read_buffer;
-    $h->on(read => sub {
+
+    $stream->on(read => sub {
         my ($h, $raw) = @_;
+
+        if( $timeout_id ) {
+            #say "Got here, removing timer $timeout_id";
+            Mojo::IOLoop->remove( $timeout_id );
+            undef $timeout_id;
+        };
 
         $read_buffer .= $raw;
         #say sprintf "Read buffer %d bytes", length($read_buffer);
@@ -124,7 +122,7 @@ sub open_p {
         };
     });
 
-    $h->on( close => sub {
+    $stream->on( close => sub {
         #say "LD $fn has gone away, reconnecting...";
         if( $s ) {
             my $c = $s->on_close;
@@ -134,10 +132,38 @@ sub open_p {
         };
     });
 
-    $h->on( error => sub {
+    $stream->on( error => sub {
         my ( $h, $error ) = @_;
+        my $fn = $s->name;
         say "LD $fn has error '$error'";
     });
+}
+
+sub open_p {
+    my( $self ) = @_;
+
+    my $res = Future::Mojo->new(Mojo::IOLoop->new);
+
+    my $fn = $self->name;
+    my $serial = $^O =~ /mswin/i ? '_open_serial_win32' : '_open_serial_other';
+    my $handle = $self->$serial( $fn );
+    my $h = Mojo::IOLoop::Stream->new($handle);
+
+    my $timeout_id; $timeout_id = Mojo::IOLoop->timer( 0.5 => sub {
+        say "Whoops - timeout, trying to reconnect, somehow";
+        $h->stop;
+        undef $h;
+        $handle->close();
+        undef $handle;
+        $res->fail("Need reconnect");
+        # Let the outside reconnect us
+
+        #say "Reconstructing things";
+        #$handle = $self->$serial( $fn );
+        #$h = Mojo::IOLoop::Stream->new($handle);
+        #$self->setup_stream_handlers( $h, $res, $timeout_id );
+    });
+    $self->setup_stream_handlers( $h, $res, $timeout_id );
 
     $h->start;
     say "Writing request to $h";
@@ -159,6 +185,7 @@ HTTP
     # Guard against the source code only having Unix newlines:
     $ws_startup =~ s!\s*\x0a!\x0d\x0a!sg;
     $h->write($ws_startup."\x0d\x0a");
+    #$h->once(drain => sub {say "(written)" });
 
     return $res;
 }
