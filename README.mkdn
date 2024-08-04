@@ -1,6 +1,7 @@
 
-[![Travis Build Status](https://travis-ci.org/Corion/HID-LoupedeckCT.svg?branch=master)](https://travis-ci.org/Corion/HID-LoupedeckCT)
-[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/Corion/HID-LoupedeckCT?branch=master&svg=true)](https://ci.appveyor.com/project/Corion/HID-LoupedeckCT)
+[![Windows](https://github.com/Corion/HID-LoupedeckCT/workflows/windows/badge.svg)](https://github.com/Corion/HID-LoupedeckCT/actions?query=workflow%3Awindows)
+[![MacOS](https://github.com/Corion/HID-LoupedeckCT/workflows/macos/badge.svg)](https://github.com/Corion/HID-LoupedeckCT/actions?query=workflow%3Amacos)
+[![Linux](https://github.com/Corion/HID-LoupedeckCT/workflows/linux/badge.svg)](https://github.com/Corion/HID-LoupedeckCT/actions?query=workflow%3Alinux)
 
 # NAME
 
