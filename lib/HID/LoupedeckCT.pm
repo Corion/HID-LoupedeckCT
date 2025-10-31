@@ -804,7 +804,7 @@ sub load_image( $self, %options ) {
     # load the image
     if( ! exists $options{ image }) {
         my $fn = delete $options{ file };
-        if( ! $options{ file }) {
+        if( ! $fn ) {
             # no image to load
             return Future->fail( "error", "Did not get an image filename to load" );
         };
