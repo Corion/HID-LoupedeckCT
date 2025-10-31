@@ -29,7 +29,6 @@ if( $is_windows ) {
 use Future::Mojo;
 
 use experimental 'signatures';
-no warnings 'experimental';
 
 our $VERSION = '0.01';
 
