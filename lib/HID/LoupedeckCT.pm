@@ -604,6 +604,7 @@ permanent register 2 will be updated.
 =cut
 
 sub set_backlight_level( $self, $level, %options ) {
+    weaken $self;
     # Store the persistent backlight level
     my $do_update = $options{ persist }
                     ? $self->read_register(2)->then(sub(%result) {
@@ -665,6 +666,7 @@ recognized by your system.
 =cut
 
 sub set_flashdrive( $self, $value ) {
+    weaken $self;
     $value = (!$value) ? 1 : 0;
     return $self->read_register(0)->then(sub(%result) {
         #use Data::Dumper; warn Dumper \%result;
@@ -801,6 +803,7 @@ sub set_button_color( $self, $button, $r, $g, $b ) {
 =cut
 
 sub load_image( $self, %options ) {
+    weaken $self;
     # load the image
     if( ! exists $options{ image }) {
         my $fn = delete $options{ file };
